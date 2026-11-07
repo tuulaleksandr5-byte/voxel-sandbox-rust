@@ -1,11 +1,23 @@
-//! Shared world-coordinate rules. Keep this crate independent of Bevy.
+//! Shared game contracts, independent of Bevy and concrete subsystems.
+#![forbid(unsafe_code)]
 
-/// Inclusive lower bound of the overworld.
-pub const WORLD_MIN_Y: i32 = -64;
-/// Inclusive upper bound of the overworld.
-pub const WORLD_MAX_Y: i32 = 320;
-/// Horizontal chunk width and vertical section height.
-pub const SECTION_SIZE: i32 = 16;
+pub mod coords;
+pub mod ids;
+pub mod inventory;
+pub mod section;
+
+pub mod persistence;
+pub mod player;
+pub mod render;
+pub mod simulation;
+pub mod world;
+
+pub use coords::{
+    BlockPos, ChunkPos, LocalBlockPos, SECTION_SIZE, SECTION_VOLUME, SectionPos, WORLD_MAX_Y,
+    WORLD_MIN_Y,
+};
+pub use ids::{BlockId, ItemId, PlayerId};
+pub use section::Section;
 
 /// Converts a block coordinate to the containing section coordinate.
 /// Uses Euclidean division so negative coordinates behave correctly.

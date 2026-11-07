@@ -13,6 +13,15 @@
 | UI | `crates/game_ui` (позже) | Модель действий и состояние игрока |
 | QA | `.github/workflows`, `tests` | Тестовые сценарии и интерфейсы |
 
+## Зафиксированные границы
+
+См. [контракты ядра](CORE_CONTRACTS.md): координаты и Section для World/Render,
+WorldRead и CommandSink для Player, ItemId и InventoryRead/Write для Items,
+WorldMetadata и SectionStore для Persistence. Эти задачи можно реализовывать
+в отдельных crates без изменения core. Поля существующих команд/событий,
+семантику ID и координат менять только после согласования со смежными задачами.
+Механические сети #22 не входят в ядро версии 1.0.
+
 ## Git-процесс
 
 1. От `main` создаётся ветка `feature/<module>-<short-task>`.
