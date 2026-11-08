@@ -1,9 +1,9 @@
 # Voxel Sandbox — Windows x64
 
-Обновлённая сборка pre-1.0: исправлены fullscreen и трава, добавлены полёт (двойной Space), Shift, колёсико, русский интерфейс, F3 и F3+G.
+Новые текстуры64×64 и меню по референсам. Space/Shift — вверх/вниз в полёте; Ctrl — ускорение; двойноеW — бег до отпусканияW. Русский интерфейс.
 
-Скачайте VoxelSandbox-Windows-x64.zip, распакуйте и запустите VoxelSandbox.exe. Устанавливать Rust не нужно. Windows10/11 x64; сохраняйте папку saves при обновлении.
+Скачайте VoxelSandbox-Windows-x64.zip, распакуйте и запустите VoxelSandbox.exe. Rust не нужен. При обновлении сохраните папку saves.
 
-[Исходники и отчёт](https://github.com/tuulaleksandr5-byte/voxel-sandbox-rust/tree/feature/playable-foundation).
+[Исходники и скриншоты](https://github.com/tuulaleksandr5-byte/voxel-sandbox-rust/blob/feature/playable-foundation/docs/VISUAL_REFRESH.md).
 
-Проверено61автотест вLinux,8клиентских тестовWindows черезWine; запуск на настоящей Windows ещё не проверен.
+64тестаLinux,10клиентских тестовWindows черезWine. Новое меню и мир проверены вWindowsEXE черезWine/Vulkan; настоящаяWindows пока не проверена.
