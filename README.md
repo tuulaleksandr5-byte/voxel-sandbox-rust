@@ -1,9 +1,9 @@
-# Voxel Sandbox for Windows x64
+# Voxel Sandbox — Windows x64
 
-Creative foundation, pre-1.0.
+Обновлённая сборка pre-1.0: исправлены fullscreen и трава, добавлены полёт (двойной Space), Shift, колёсико, русский интерфейс, F3 и F3+G.
 
-Download VoxelSandbox-Windows-x64.zip, extract it and launch VoxelSandbox.exe. Windows10/11 x64 with Vulkan/DirectX12 drivers is required.
+Скачайте VoxelSandbox-Windows-x64.zip, распакуйте и запустите VoxelSandbox.exe. Устанавливать Rust не нужно. Windows10/11 x64; сохраняйте папку saves при обновлении.
 
-This branch distributes only the built package. It does not change main.
+[Исходники и отчёт](https://github.com/tuulaleksandr5-byte/voxel-sandbox-rust/tree/feature/playable-foundation).
 
-The executable was cross-compiled and tested through Wine/Vulkan (menu, creation/rendering/saving a world, clean exit); native Windows testing is pending.
+Проверено61автотест вLinux,8клиентских тестовWindows черезWine; запуск на настоящей Windows ещё не проверен.
