@@ -1,0 +1,32 @@
+{
+  "name": "Voxel Sandbox 2.0 Survival — Stage 3 alpha",
+  "version": "2.0.0-dev.3",
+  "completed_stages": [
+    1,
+    2,
+    3
+  ],
+  "source_commit": "9c8a3d700b72fc938f15dfc8f54d8d5a1f31368a",
+  "base_source_commit": "e39cd9f65b172c95690c91c01ad7a7929cc26ce3",
+  "target": "x86_64-pc-windows-gnu",
+  "rust": "1.99.1",
+  "bevy": "0.20.1",
+  "exe_sha256": "a6ab48e71b24b5524c81bdd95dddb6a3195b0b1fda58f50a5a79dff5f52e8630",
+  "native_tests": 180,
+  "windows_wine_tests": 179,
+  "native_windows_hardware_verified": false,
+  "original_embedded_png_count": 17,
+  "save_schema": 1,
+  "generator_version": 1,
+  "default_save_directory": "saves-v2",
+  "runtime_only_until_stage9": [
+    "inventory",
+    "held_cursor",
+    "drops",
+    "chests_and_contents",
+    "vitals",
+    "game_mode",
+    "game_rules"
+  ],
+  "created_utc": "2026-11-09T08:23:03.207715+00:00"
+}

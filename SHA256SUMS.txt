@@ -1,0 +1,2 @@
+9be74b160cafecb3c3b39182ed1e08054b5afbe2d31d2b6aa2991372f38a6cb2  VoxelSandbox-2.0-Stage3-Windows-x64.zip
+a6ab48e71b24b5524c81bdd95dddb6a3195b0b1fda58f50a5a79dff5f52e8630  VoxelSandbox.exe
