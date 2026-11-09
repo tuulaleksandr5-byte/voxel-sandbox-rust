@@ -1,0 +1,53 @@
+name: Build Windows game (2.0 alpha)
+
+on:
+  push:
+    branches:
+      - feature/2.0-progression
+    paths:
+      - ".github/workflows/build-windows-game.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-game:
+    name: Windows x64 release executable
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out 2.0 alpha source
+        uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+
+      - name: Cache Rust compilation
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build game executable
+        run: cargo build --release --locked -p voxel-client
+
+      - name: Prepare portable Windows package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/release/voxel-client.exe" "dist/VoxelSandbox.exe"
+          @"
+          Voxel Sandbox Rust — Windows x64 (2.0.0-dev.3)
+          Extract the ZIP to a folder, then double-click VoxelSandbox.exe.
+          This is an alpha build from feature/2.0-progression, not a stable release.
+          Saves are stored in a saves-v2 folder relative to where the game runs.
+          "@ | Set-Content "dist/README.txt" -Encoding UTF8
+          Get-FileHash "dist/VoxelSandbox.exe" -Algorithm SHA256 | Format-List
+
+      - name: Upload ready-to-play ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxelSandbox-2.0.0-dev.3-Windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
