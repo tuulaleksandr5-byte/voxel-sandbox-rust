@@ -6,6 +6,8 @@ on:
       - feature/2.0-progression
     paths:
       - ".github/workflows/build-windows-game.yml"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
