@@ -1,0 +1,27 @@
+{
+  "name": "Voxel Sandbox 2.0 Survival — Stage 2 alpha",
+  "version": "2.0.0-dev.2",
+  "source_commit": "f464a9c1cd27956561aa8c948e73d43f66bdbe68",
+  "foundation_source_commit": "74d34332a587131d3b462c1a99fa21b5769ec13b",
+  "target": "x86_64-pc-windows-gnu",
+  "rust": "1.99.1",
+  "bevy": "0.20.1",
+  "exe_sha256": "f0ca6b7a26486f2c72bfb8a0f55b63c8016b68d4a12ef04b5ebfc3e44812099f",
+  "verified_native_tests": 112,
+  "verified_windows_wine_tests": 80,
+  "native_windows_hardware_verified": false,
+  "unchanged_embedded_original_pngs": 17,
+  "default_save_directory": "saves-v2",
+  "save_schema": 1,
+  "generator_version": 1,
+  "runtime_only": [
+    "vitals",
+    "game_mode",
+    "game_rules"
+  ],
+  "completed_stages": [
+    1,
+    2
+  ],
+  "created_utc": "2026-11-09T07:02:23.382265+00:00"
+}

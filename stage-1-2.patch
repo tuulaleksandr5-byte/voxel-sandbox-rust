@@ -1,0 +1,2926 @@
+diff --git a/.gitignore b/.gitignore
+index 6fd2537..e34e111 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -7,4 +7,5 @@ Thumbs.db
+ *.swp
+ *.tmp
+ saves/
++saves-v2/
+ logs/
+diff --git a/Cargo.lock b/Cargo.lock
+index abd7108..461fe07 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2799,6 +2799,7 @@ dependencies = [
+ name = "game_core"
+ version = "0.1.0"
+ dependencies = [
++ "ron",
+  "serde",
+  "serde_json",
+ ]
+@@ -5495,7 +5496,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+ 
+ [[package]]
+ name = "voxel-client"
+-version = "0.1.0"
++version = "2.0.0-dev.2"
+ dependencies = [
+  "bevy",
+  "find-msvc-tools",
+diff --git a/README.md b/README.md
+index f5e99fd..b54a102 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ Нативная 3D-песочница на **Rust 1.99.1 + Bevy 0.20.1**, edition 2024.
+ 
+-**Статус: рабочий творческий фундамент (pre-1.0).** В существующем репозитории реализован игровой цикл: меню → создание мира по seed → исследование и строительство → сохранение → повторная загрузка. Это ещё не релиз v1.0: Windows и целевая производительность требуют отдельной проверки.
++**1.0 Foundation принята пользователем и зафиксирована тегом `v1.0.0`.** Ветка `feature/2.0-progression` развивает её до **2.0 Survival, альфа — этап 2 из 8**. Сейчас добавлены режимы игры, здоровье, голод, воздух, смерть/возрождение и консоль. Полная прогрессия от дерева до алмазных инструментов ещё не реализована. [Состояние этапа 2](docs/STAGE_2_SURVIVAL.md) · [План восьми этапов](docs/SURVIVAL_V2_PLAN.md).
+ 
+ ## Запуск
+ 
+@@ -39,7 +39,7 @@ cargo run --locked -p voxel-client
+ | Ctrl / W дважды | Бег и ускорение полёта |
+ | Shift на земле | Приседание (под потолком нельзя встать) |
+ | 1–9 / колёсико | Выбор слота хотбара |
+-| Space дважды | Включить/выключить полёт |
++| Space дважды | Включить/выключить полёт в Creative |
+ | Space / Shift в полёте | Вверх / вниз |
+ | F3 | Координаты и FPS |
+ | F3 + G | Сетка чанков |
+@@ -47,6 +47,7 @@ cargo run --locked -p voxel-client
+ | ЛКМ / ПКМ | Разрушить / поставить блок на расстоянии до 6 блоков |
+ | Esc | Пауза / продолжение |
+ | F5 | Сохранить мир |
++| / | Консоль: `/gamemode survival`, `/gamemode creative`, `/gamerule keepInventory true`, `/gamerule naturalRegeneration false` |
+ 
+ Блок нельзя установить внутри игрока. Коренная порода неразрушима. Вода в этом этапе — статические прозрачные блоки, проходимые и доступные для удаления; симуляция течения и плавание не реализованы.
+ 
+@@ -54,14 +55,16 @@ cargo run --locked -p voxel-client
+ 
+ ## Реализовано
+ 
+-- Главное меню, ввод имени и необязательного числового seed, список сохранений, пауза.
++- Главное меню, ввод имени и необязательного числового seed, выбор Survival/Creative, список сохранений, пауза.
++- Этап 2 Survival: здоровье 20, голод/насыщение/истощение, регенерация, урон от падения и утопления, воздух, смерть и возрождение у спавна. Creative отключает урон и голод и разрешает полёт.
++- Минимальная консоль `/gamemode` и `/gamerule`, обновление `assets/data/survival.ron` без перезапуска. Логика выживания независима от Bevy; ввод и UI передают действия через сообщения.
+ - Творческий каталог, бесконечные блоки, хотбар на 9 слотов, перекрестие и контур выбранного блока.
+ - 16 стабильных ID: воздух, трава, земля, камень, глубинный камень, песок, гравий, дерево, листва, доски, булыжник, стекло, вода, коренная порода, снег, песчаник.
+ - Компактные секции 16×16×16, высоты **−64…320 включительно**, отрицательные координаты.
+ - Детерминированный noise-ландшафт: равнины, лес, пустыня, горы, океан; деревья, пещеры, вода.
+ - Фоновая загрузка ближайших чанков и построение мешей, выгрузка дальних чанков, лимит загрузок мешей за кадр.
+ - Greedy meshing, отсечение скрытых граней и frustum culling Bevy. ECS-сущности соответствуют мешам секций/материалам, а не отдельным блокам.
+-- Массив из 18 текстур 128×128: Linear + 8 мип-уровней + анизотропия ×8, повторение по greedy-граням, назначение top/side/bottom в RON, угловой AO, Gaussian-тени, градиент неба и дальний туман. Все17 PNG из присланного `textures_cut.zip` сохранены без изменений и встроены в EXE; внешний атлас не требуется. Процедурных подменных текстур нет. [Ресурсы](assets/README.md).
++- Массив из 18 текстур 128×128: Linear + 8 мип-уровней + анизотропия ×8, повторение по greedy-граням, назначение top/side/bottom в RON, угловой AO, Gaussian-тени, градиент неба и дальний туман. Все 17 PNG из присланного `textures_cut.zip` сохранены без изменений и встроены в EXE; внешний атлас не требуется. Процедурных подменных текстур нет. [Ресурсы](assets/README.md).
+ - Гравитация, swept AABB-коллизии, 3D DDA, запрет движения в незагруженный чанк.
+ - Версионированные сохранения: seed, имя, положение/обзор, время и правки блоков. Автосохранение каждые 30 секунд, ручное сохранение и сохранение при выходе.
+ - Проверка целостности, синхронизированные временные файлы и резервная копия. Повреждённый файл восстанавливается из проверенной копии; несовместимая версия выдаёт ошибку.
+@@ -69,7 +72,9 @@ cargo run --locked -p voxel-client
+ 
+ ## Сохранения
+ 
+-По умолчанию каталог `saves/` находится относительно рабочей директории запуска. Его можно задать переменной `VOXEL_SAVE_DIR`.
++В этой альфе по умолчанию используется отдельный каталог `saves-v2/` относительно рабочей директории запуска. Каталог Foundation `saves/` не подхватывается автоматически; для проверки старого мира скопируйте его JSON и резервную копию в `saves-v2/`. Переменная `VOXEL_SAVE_DIR` по-прежнему задаёт другой каталог.
++
++Формат пока остаётся JSON schema 1, генератор — 1: сохраняются имя, seed, положение/обзор, время и правки блоков. Здоровье, голод, режим и gamerules пока живут только в памяти. После открытия мира устанавливается Survival со свежими статами. Полное сохранение и миграция 1 → 2 запланированы на этап 8; не используйте эту альфу как окончательный формат Survival.
+ 
+ Мир хранится в `<id>.json`, предыдущая проверенная версия — в `<id>.json.bak`. Настройки находятся в `settings.cfg` и не попадают в список миров. Не удаляйте резервные копии при ручном восстановлении. Контрольная сумма обнаруживает повреждение, но не предназначена для защиты от намеренной подделки.
+ 
+@@ -85,7 +90,7 @@ cargo build --locked -p voxel-client
+ 
+ Тесты проверяют координаты и границы, детерминированную генерацию, правки/выгрузку чанков, greedy meshing, DDA, коллизии и округление контактов, вставание под потолком, целостность/восстановление сохранений. Сквозной headless-сценарий строит на границе отрицательных чанков, сохраняет, создаёт новый экземпляр мира и проверяет постройку и меш.
+ 
+-## До полноценного v1.0
++## Дальнейшая проверка и ограничения
+ 
+ - Проверка уже собранного Windows GNU x64 EXE на настоящей Windows-машине и подготовка MSVC release-сборки.
+ - Профилирование на GTX 1660/1920×1080, длительные переходы через чанки и большой объём построек. **60 FPS не измерены и не гарантируются.**
+@@ -94,10 +99,10 @@ cargo build --locked -p voxel-client
+ - Полировка воды/стекла (сортировка прозрачности по мешу секции может давать артефакты), текстур, теней и интерфейса. Русский интерфейс уже добавлен.
+ - Более широкий ручной QA настроек/множества миров, длительная проверка сохранности и внешнее тестирование сборок.
+ 
+-Станки, инструменты, выживание, крафт, механизмы, драконы и мультиплеер не входят в текущий этап. Приложенные изображения служат референсами палитры и материалов; готовые спрайты из них в игру не извлекались.
++Количественный инвентарь и дроп появятся на этапе 3, руды и добыча по времени — на этапе 4; сейчас во всех режимах сохраняются бесконечные блоки и мгновенное разрушение из Foundation. Поэтому `keepInventory` пока задаёт правило и событие смерти, но физический дроп отсутствует. Лава, огонь и урон от мобов имеют только проверяемые точки расширения в ядре; соответствующих блоков и мобов ещё нет. Крафт, инструменты, броня, опыт и зачарования относятся к последующим этапам 2.0. Мобы — к 3.0, мультиплеер — к 11.0. [Актуальная дорожная карта](docs/ROADMAP.md).
+ 
+ [Архитектура](docs/ARCHITECTURE.md) · [План версий](docs/ROADMAP.md) · [ТЗ v1.0](docs/superpowers/specs/2026-11-08-v1-requirements.md)
+ 
+ Лицензия проекта пока не выбрана.
+ 
+-Хотбар: девять кубических иконок из атласа, фиолетовая полупрозрачная панель и яркая рамка выбора. У каждого блока по три варианта break/step/place; позиционные звуки встроены в EXE. Исходные17 PNG теперь получены, побайтно сохранены и встроены. Значок приложения подготовлен по присланному логотипу.
++Хотбар: девять кубических иконок из атласа, фиолетовая полупрозрачная панель и яркая рамка выбора. У каждого блока по три варианта break/step/place; позиционные звуки встроены в EXE. Исходные 17 PNG теперь получены, побайтно сохранены и встроены. Значок приложения подготовлен по присланному логотипу.
+diff --git a/apps/client/Cargo.toml b/apps/client/Cargo.toml
+index d46f146..e7f0666 100644
+--- a/apps/client/Cargo.toml
++++ b/apps/client/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "voxel-client"
+-version = "0.1.0"
++version = "2.0.0-dev.2"
+ edition.workspace = true
+ publish = false
+ 
+diff --git a/apps/client/src/console.rs b/apps/client/src/console.rs
+new file mode 100644
+index 0000000..83ce7e0
+--- /dev/null
++++ b/apps/client/src/console.rs
+@@ -0,0 +1,319 @@
++use crate::survival_client::PlayerAction;
++use crate::{
++    session::{Game, Mode},
++    survival_client::PlayerActionMessage,
++};
++use bevy::{
++    input::{ButtonState, keyboard::KeyboardInput},
++    prelude::*,
++};
++use game_core::survival::{GameMode, GameRule};
++
++#[derive(Resource, Default)]
++pub struct ConsoleState {
++    pub input: String,
++    pub feedback: String,
++}
++
++pub fn plugin(app: &mut App) {
++    app.init_resource::<ConsoleState>().add_systems(
++        Update,
++        keyboard_input
++            .after(crate::player::controls)
++            .before(crate::survival_client::apply_actions),
++    );
++}
++
++fn keyboard_input(
++    mut keyboard: MessageReader<KeyboardInput>,
++    mut game: ResMut<Game>,
++    mut console: ResMut<ConsoleState>,
++    mut actions: MessageWriter<PlayerActionMessage>,
++) {
++    for event in keyboard.read() {
++        if event.state != ButtonState::Pressed {
++            continue;
++        }
++        if game.mode == Mode::Playing
++            && game.world_id.is_some()
++            && event.key_code == KeyCode::Slash
++            && !event.repeat
++        {
++            console.input = "/".into();
++            console.feedback.clear();
++            game.screen(Mode::Console);
++            continue;
++        }
++        if game.mode != Mode::Console {
++            continue;
++        }
++        match event.key_code {
++            KeyCode::Escape => {
++                console.input.clear();
++                console.feedback.clear();
++                game.screen(Mode::Playing);
++            }
++            KeyCode::Enter | KeyCode::NumpadEnter if !event.repeat => {
++                match parse_command(&console.input) {
++                    Ok(action) => {
++                        actions.write(PlayerActionMessage(action));
++                        console.input.clear();
++                        console.feedback.clear();
++                        game.screen(Mode::Playing);
++                    }
++                    Err(error) => {
++                        console.feedback = error;
++                        game.ui_dirty = true;
++                    }
++                }
++            }
++            KeyCode::Backspace => {
++                console.input.pop();
++                game.ui_dirty = true;
++            }
++            _ => {
++                if let Some(text) = &event.text {
++                    let remaining = 256_usize.saturating_sub(console.input.chars().count());
++                    console.input.extend(
++                        text.chars()
++                            .filter(|c| !c.is_control() && !matches!(c, '\u{2028}' | '\u{2029}'))
++                            .take(remaining),
++                    );
++                    game.ui_dirty = true;
++                }
++            }
++        }
++    }
++}
++
++pub fn parse_command(text: &str) -> Result<PlayerAction, String> {
++    let mut arguments = text.split_whitespace();
++    match arguments.next() {
++        Some("/gamemode") => {
++            let mode = arguments.next();
++            if mode.is_none() || arguments.next().is_some() {
++                return Err("Использование: /gamemode survival|creative|0|1".into());
++            }
++            match mode {
++                Some("survival" | "0") => Ok(PlayerAction::SetMode(GameMode::Survival)),
++                Some("creative" | "1") => Ok(PlayerAction::SetMode(GameMode::Creative)),
++                _ => Err("Неизвестный режим: используйте survival, creative, 0 или 1".into()),
++            }
++        }
++        Some("/gamerule") => {
++            let rule = arguments.next();
++            let value = arguments.next();
++            if rule.is_none() || value.is_none() || arguments.next().is_some() {
++                return Err(
++                    "Использование: /gamerule keepInventory|naturalRegeneration true|false".into(),
++                );
++            }
++            let rule = match rule {
++                Some("keepInventory") => GameRule::KeepInventory,
++                Some("naturalRegeneration") => GameRule::NaturalRegeneration,
++                _ => {
++                    return Err("Неизвестное правило: keepInventory или naturalRegeneration".into());
++                }
++            };
++            let value = match value {
++                Some("true") => true,
++                Some("false") => false,
++                _ => return Err("Значение правила должно быть true или false".into()),
++            };
++            Ok(PlayerAction::SetRule(rule, value))
++        }
++        Some(command) => Err(format!("Неизвестная команда: {command}")),
++        None => Err("Введите команду /gamemode или /gamerule".into()),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn input_app(mode: Mode, has_world: bool) -> App {
++        let mut app = App::new();
++        app.init_resource::<Game>()
++            .init_resource::<ConsoleState>()
++            .add_message::<KeyboardInput>()
++            .add_message::<PlayerActionMessage>()
++            .add_systems(Update, keyboard_input);
++        let mut game = app.world_mut().resource_mut::<Game>();
++        game.mode = mode;
++        game.world_id = has_world.then(|| "test-world".into());
++        game.ui_dirty = false;
++        app
++    }
++
++    fn press(app: &mut App, key_code: KeyCode, text: Option<&str>) {
++        app.world_mut().write_message(KeyboardInput {
++            key_code,
++            logical_key: bevy::input::keyboard::Key::Character(text.unwrap_or("").into()),
++            state: ButtonState::Pressed,
++            text: text.map(Into::into),
++            repeat: false,
++            window: Entity::PLACEHOLDER,
++        });
++    }
++
++    #[test]
++    fn parses_named_and_numeric_game_modes() {
++        for (command, expected) in [
++            ("/gamemode survival", GameMode::Survival),
++            ("/gamemode 0", GameMode::Survival),
++            ("/gamemode creative", GameMode::Creative),
++            ("/gamemode 1", GameMode::Creative),
++            ("  /gamemode   survival  ", GameMode::Survival),
++        ] {
++            assert!(
++                matches!(parse_command(command), Ok(PlayerAction::SetMode(mode)) if mode == expected),
++                "Команда: {command}"
++            );
++        }
++    }
++
++    #[test]
++    fn parses_both_game_rules_and_boolean_values() {
++        for (command, expected_rule, expected_value) in [
++            (
++                "/gamerule keepInventory true",
++                GameRule::KeepInventory,
++                true,
++            ),
++            (
++                "/gamerule keepInventory false",
++                GameRule::KeepInventory,
++                false,
++            ),
++            (
++                "/gamerule naturalRegeneration true",
++                GameRule::NaturalRegeneration,
++                true,
++            ),
++            (
++                "/gamerule naturalRegeneration false",
++                GameRule::NaturalRegeneration,
++                false,
++            ),
++        ] {
++            assert!(
++                matches!(parse_command(command), Ok(PlayerAction::SetRule(rule, value)) if rule == expected_rule && value == expected_value),
++                "Команда: {command}"
++            );
++        }
++    }
++
++    #[test]
++    fn rejects_unknown_commands_missing_arguments_extra_arguments_and_bad_values() {
++        for command in [
++            "",
++            "/",
++            "gamemode survival",
++            "/unknown",
++            "/respawn",
++            "/gamemode",
++            "/gamemode survival extra",
++            "/gamemode 2",
++            "/gamemode spectator",
++            "/gamerule",
++            "/gamerule keepInventory",
++            "/gamerule keepInventory true extra",
++            "/gamerule unknown true",
++            "/gamerule keepInventory 1",
++            "/gamerule keepInventory TRUE",
++            "/gamerule naturalRegeneration on",
++        ] {
++            let error = parse_command(command).expect_err(command);
++            assert!(!error.is_empty(), "Команда: {command}");
++            assert!(error.chars().any(|ch| ('А'..='я').contains(&ch)));
++        }
++    }
++
++    #[test]
++    fn opening_console_consumes_the_slash_event_once() {
++        let mut app = input_app(Mode::Playing, true);
++        press(&mut app, KeyCode::Slash, Some("/"));
++        app.update();
++
++        assert_eq!(app.world().resource::<Game>().mode, Mode::Console);
++        assert!(app.world().resource::<Game>().ui_dirty);
++        assert_eq!(app.world().resource::<ConsoleState>().input, "/");
++    }
++
++    #[test]
++    fn console_does_not_open_without_a_world_or_outside_playing() {
++        for (mode, has_world) in [
++            (Mode::Playing, false),
++            (Mode::Dead, true),
++            (Mode::Paused, true),
++            (Mode::Inventory, true),
++        ] {
++            let mut app = input_app(mode, has_world);
++            press(&mut app, KeyCode::Slash, Some("/"));
++            app.update();
++
++            assert_eq!(app.world().resource::<Game>().mode, mode);
++            assert!(app.world().resource::<ConsoleState>().input.is_empty());
++        }
++    }
++
++    #[test]
++    fn valid_enter_emits_an_action_and_returns_to_playing() {
++        let mut app = input_app(Mode::Console, true);
++        app.world_mut().resource_mut::<ConsoleState>().input = "/gamemode creative".into();
++        press(&mut app, KeyCode::Enter, Some("\r"));
++        app.update();
++
++        assert_eq!(app.world().resource::<Game>().mode, Mode::Playing);
++        assert!(app.world().resource::<ConsoleState>().input.is_empty());
++        let messages = app.world().resource::<Messages<PlayerActionMessage>>();
++        let mut cursor = messages.get_cursor();
++        let received: Vec<_> = cursor.read(messages).collect();
++        assert_eq!(received.len(), 1);
++        assert!(matches!(
++            &received[0].0,
++            PlayerAction::SetMode(GameMode::Creative)
++        ));
++    }
++
++    #[test]
++    fn malformed_command_stays_open_and_escape_clears_the_input() {
++        let mut app = input_app(Mode::Console, true);
++        app.world_mut().resource_mut::<ConsoleState>().input = "/gamerule keepInventory yes".into();
++        press(&mut app, KeyCode::Enter, None);
++        app.update();
++
++        assert_eq!(app.world().resource::<Game>().mode, Mode::Console);
++        assert!(app.world().resource::<Game>().ui_dirty);
++        assert!(!app.world().resource::<ConsoleState>().feedback.is_empty());
++        assert!(
++            app.world()
++                .resource::<Messages<PlayerActionMessage>>()
++                .is_empty()
++        );
++
++        press(&mut app, KeyCode::Escape, None);
++        app.update();
++        assert_eq!(app.world().resource::<Game>().mode, Mode::Playing);
++        assert!(app.world().resource::<ConsoleState>().input.is_empty());
++        assert!(app.world().resource::<ConsoleState>().feedback.is_empty());
++    }
++
++    #[test]
++    fn unicode_input_is_single_line_limited_to_256_characters_and_backspaces_safely() {
++        let mut app = input_app(Mode::Console, true);
++        app.world_mut().resource_mut::<ConsoleState>().input = format!("/{}", "я".repeat(254));
++        press(&mut app, KeyCode::KeyA, Some("🦀\n\r\t\0\u{2028}\u{2029}z"));
++        app.update();
++        let console = app.world().resource::<ConsoleState>();
++        assert_eq!(console.input.chars().count(), 256);
++        assert!(console.input.ends_with('🦀'));
++        assert!(!console.input.chars().any(char::is_control));
++
++        press(&mut app, KeyCode::Backspace, None);
++        app.update();
++        let console = app.world().resource::<ConsoleState>();
++        assert_eq!(console.input.chars().count(), 255);
++        assert!(console.input.ends_with('я'));
++    }
++}
+diff --git a/apps/client/src/main.rs b/apps/client/src/main.rs
+index be7a70f..2e9a92b 100644
+--- a/apps/client/src/main.rs
++++ b/apps/client/src/main.rs
+@@ -3,6 +3,7 @@
+ 
+ mod app_icon;
+ mod block_audio;
++mod console;
+ mod control_input;
+ mod footsteps;
+ mod graphics_assets;
+@@ -10,6 +11,7 @@ mod player;
+ mod session;
+ mod settings;
+ mod streaming;
++mod survival_client;
+ mod ui;
+ 
+ use bevy::{
+@@ -31,7 +33,7 @@ fn main() {
+     let mut app = App::new();
+     app.add_plugins(DefaultPlugins.set(WindowPlugin {
+         primary_window: Some(Window {
+-            title: "Voxel Sandbox — Creative Foundation".into(),
++            title: "Voxel Sandbox — 2.0 Survival · этап 2".into(),
+             resolution: (1280, 720).into(),
+             ..default()
+         }),
+@@ -51,7 +53,10 @@ fn main() {
+         brightness: 300.0,
+         ..default()
+     })
++    .add_message::<survival_client::PlayerActionMessage>()
++    .add_message::<survival_client::SurvivalStateChanged>()
+     .add_systems(Startup, setup)
++    .add_systems(Update, survival_client::reload_config.before(actions))
+     .add_systems(Update, app_icon::set_icon)
+     .add_systems(
+         Update,
+@@ -59,12 +64,16 @@ fn main() {
+             actions,
+             streaming::stream_world,
+             player::controls,
++            survival_client::apply_actions,
++            survival_client::simulate,
++            survival_client::observe_changes,
+             player::sky,
+             autosave,
+             close_save,
+         )
+             .chain(),
+     );
++    console::plugin(&mut app);
+     ui::plugin(&mut app);
+     app.run();
+ }
+@@ -205,6 +214,12 @@ fn open(
+     game.grounded = false;
+     game.height = 1.3;
+     game.flying = false;
++    game.game_mode = game_core::survival::GameMode::Survival;
++    game.game_rules = game_core::survival::GameRules::default();
++    game.vitals = game_core::survival::Vitals::new(&game.survival_config);
++    game.spawn = Vec3::from_array(spawn_position(game.world.seed));
++    game.pending_respawn = false;
++    game.fall_peak = None;
+     game.debug_open = false;
+     game.yaw = data.yaw;
+     game.pitch = data.pitch;
+@@ -224,10 +239,27 @@ fn actions(
+     mut window: Single<&mut Window>,
+     mut volume: ResMut<bevy::audio::GlobalVolume>,
+     icons: Res<graphics_assets::BlockIcons>,
++    mut player_actions: MessageWriter<survival_client::PlayerActionMessage>,
+     mut exit: MessageWriter<AppExit>,
+ ) {
+     for action in std::mem::take(&mut intents.0) {
+         match action {
++            Action::CycleGameMode => {
++                game.creation_mode = match game.creation_mode {
++                    game_core::survival::GameMode::Survival => {
++                        game_core::survival::GameMode::Creative
++                    }
++                    game_core::survival::GameMode::Creative => {
++                        game_core::survival::GameMode::Survival
++                    }
++                };
++                game.ui_dirty = true;
++            }
++            Action::Respawn => {
++                player_actions.write(survival_client::PlayerActionMessage(
++                    survival_client::PlayerAction::Respawn,
++                ));
++            }
+             Action::New => {
+                 game.input_field = 0;
+                 game.status.clear();
+@@ -273,7 +305,12 @@ fn actions(
+                     edits: Vec::new(),
+                 };
+                 match save_world(&settings::save_root(), &id, &data) {
+-                    Ok(()) => open(&mut game, id, data, &mut stream, &mut commands, &mut meshes),
++                    Ok(()) => {
++                        open(&mut game, id, data, &mut stream, &mut commands, &mut meshes);
++                        game.game_mode = game.creation_mode;
++                        // Ждём чанк и ставим на безопасную поверхность без стартового урона.
++                        game.pending_respawn = true;
++                    }
+                     Err(e) => {
+                         game.status = e;
+                         game.ui_dirty = true;
+diff --git a/apps/client/src/player.rs b/apps/client/src/player.rs
+index 522907e..47f1059 100644
+--- a/apps/client/src/player.rs
++++ b/apps/client/src/player.rs
+@@ -14,6 +14,7 @@ use bevy::{
+ use game_core::{
+     BEDROCK, World,
+     interaction::{can_stand, move_player, player_intersects_block, raycast},
++    survival::{DamageSource, GameMode, fall_damage},
+     valid_world_height,
+ };
+ #[derive(Component)]
+@@ -38,6 +39,7 @@ pub fn controls(
+     mut input: Local<crate::control_input::ControlInput>,
+     mut steps: Local<crate::footsteps::StepCadence>,
+     mut sounds: MessageWriter<crate::block_audio::BlockSound>,
++    mut player_actions: MessageWriter<crate::survival_client::PlayerActionMessage>,
+ ) {
+     let presses: Vec<_> = keyboard
+         .read()
+@@ -76,6 +78,13 @@ pub fn controls(
+         })
+         .sum();
+     let (window, cursor) = &mut *window;
++    if matches!(game.mode, Mode::Console | Mode::Dead) || game.pending_respawn {
++        cursor.visible = true;
++        cursor.grab_mode = CursorGrabMode::None;
++        steps.reset();
++        input.clear_movement();
++        return;
++    }
+     if game.mode == Mode::Playing && !window.focused {
+         game.screen(Mode::Paused);
+     }
+@@ -118,7 +127,10 @@ pub fn controls(
+             if *key == KeyCode::KeyW {
+                 input.forward_tap(time.elapsed_secs_f64());
+             }
+-            if *key == KeyCode::Space && input.jump_tap(time.elapsed_secs_f64()) {
++            if *key == KeyCode::Space
++                && game.game_mode == GameMode::Creative
++                && input.jump_tap(time.elapsed_secs_f64())
++            {
+                 game.flying = !game.flying;
+                 game.velocity.y = 0.;
+                 game.grounded = false;
+@@ -144,6 +156,7 @@ pub fn controls(
+             }
+         }
+         let previous_feet = game.feet;
++        let was_grounded = game.grounded;
+         let dt = time.delta_secs().min(0.1);
+         let rotation = Quat::from_rotation_y(game.yaw);
+         let mut movement = Vec3::ZERO;
+@@ -195,6 +208,9 @@ pub fn controls(
+         if game.world.chunks.contains_key(&chunk) {
+             if !game.flying && keys.just_pressed(KeyCode::Space) && game.grounded {
+                 game.velocity.y = 8.0;
++                player_actions.write(crate::survival_client::PlayerActionMessage(
++                    crate::survival_client::PlayerAction::Jump { sprinting: sprint },
++                ));
+             }
+             if game.flying {
+                 game.velocity.y = (i32::from(keys.pressed(KeyCode::Space))
+@@ -219,6 +235,40 @@ pub fn controls(
+             game.velocity = Vec3::ZERO;
+         }
+         let traveled = (game.feet - previous_feet).xz().length();
++        player_actions.write(crate::survival_client::PlayerActionMessage(
++            crate::survival_client::PlayerAction::Travel {
++                meters: traveled,
++                sprinting: sprint && game.height >= 1.8,
++            },
++        ));
++        if game.game_mode == GameMode::Survival {
++            let wet = game.world.block(game.feet.floor().as_ivec3().to_array()) == game_core::WATER;
++            if wet {
++                game.fall_peak = None;
++            } else if game.grounded {
++                if !was_grounded && let Some(peak) = game.fall_peak {
++                    let amount = fall_damage(peak - game.feet.y, &game.survival_config);
++                    if amount > 0. {
++                        player_actions.write(crate::survival_client::PlayerActionMessage(
++                            crate::survival_client::PlayerAction::Damage {
++                                amount,
++                                source: DamageSource::Fall,
++                            },
++                        ));
++                    }
++                }
++                game.fall_peak = None;
++            } else {
++                game.fall_peak = Some(
++                    game.fall_peak
++                        .unwrap_or(previous_feet.y)
++                        .max(previous_feet.y)
++                        .max(game.feet.y),
++                );
++            }
++        } else {
++            game.fall_peak = None;
++        }
+         if steps.advance(
+             time.delta_secs(),
+             traveled,
+@@ -254,6 +304,9 @@ pub fn controls(
+             let broken = game.world.block(hit.block);
+             if mouse.just_pressed(MouseButton::Left) && game.world.set(hit.block, 0) {
+                 game.revision += 1;
++                player_actions.write(crate::survival_client::PlayerActionMessage(
++                    crate::survival_client::PlayerAction::MinedBlock,
++                ));
+                 sounds.write(crate::block_audio::BlockSound {
+                     block: broken,
+                     kind: crate::block_audio::SoundKind::Break,
+diff --git a/apps/client/src/session.rs b/apps/client/src/session.rs
+index 282fc06..e38efc8 100644
+--- a/apps/client/src/session.rs
++++ b/apps/client/src/session.rs
+@@ -1,6 +1,10 @@
+ use crate::settings::Settings;
+ use bevy::prelude::*;
+-use game_core::{World, persistence::SaveData};
++use game_core::{
++    World,
++    persistence::SaveData,
++    survival::{GameMode, GameRules, SurvivalConfig, Vitals},
++};
+ 
+ #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+ pub enum Mode {
+@@ -11,11 +15,21 @@ pub enum Mode {
+     Playing,
+     Paused,
+     Inventory,
++    Dead,
++    Console,
+ }
+ 
+ #[derive(Resource)]
+ pub struct Game {
+     pub mode: Mode,
++    pub game_mode: GameMode,
++    pub creation_mode: GameMode,
++    pub vitals: Vitals,
++    pub game_rules: GameRules,
++    pub survival_config: SurvivalConfig,
++    pub spawn: Vec3,
++    pub pending_respawn: bool,
++    pub fall_peak: Option<f32>,
+     pub return_to: Mode,
+     pub ui_dirty: bool,
+     pub status: String,
+@@ -46,6 +60,14 @@ impl Default for Game {
+     fn default() -> Self {
+         Self {
+             mode: Mode::Menu,
++            game_mode: GameMode::Survival,
++            creation_mode: GameMode::Survival,
++            vitals: Vitals::new(&SurvivalConfig::default()),
++            game_rules: GameRules::default(),
++            survival_config: SurvivalConfig::default(),
++            spawn: Vec3::new(0.5, 85., 0.5),
++            pending_respawn: false,
++            fall_peak: None,
+             return_to: Mode::Menu,
+             ui_dirty: true,
+             status: String::new(),
+@@ -87,7 +109,11 @@ impl Game {
+             generator_version: 1,
+             name: self.name_input.clone(),
+             seed: self.world.seed,
+-            player: self.feet.to_array(),
++            player: if self.vitals.is_dead() {
++                self.spawn.to_array()
++            } else {
++                self.feet.to_array()
++            },
+             yaw: self.yaw,
+             pitch: self.pitch,
+             time: self.clock,
+diff --git a/apps/client/src/settings.rs b/apps/client/src/settings.rs
+index b1d7075..6c65723 100644
+--- a/apps/client/src/settings.rs
++++ b/apps/client/src/settings.rs
+@@ -28,7 +28,7 @@ impl Default for Settings {
+ pub fn save_root() -> PathBuf {
+     std::env::var_os("VOXEL_SAVE_DIR")
+         .map(PathBuf::from)
+-        .unwrap_or_else(|| PathBuf::from("saves"))
++        .unwrap_or_else(|| PathBuf::from("saves-v2"))
+ }
+ impl Settings {
+     pub fn load() -> Self {
+diff --git a/apps/client/src/survival_client.rs b/apps/client/src/survival_client.rs
+new file mode 100644
+index 0000000..f7d5680
+--- /dev/null
++++ b/apps/client/src/survival_client.rs
+@@ -0,0 +1,337 @@
++//! События связывают ввод с независимыми правилами выживания.
++use crate::{
++    console::ConsoleState,
++    session::{Game, Mode},
++};
++use bevy::prelude::*;
++use game_core::{
++    AIR, WATER, WORLD_MAX_Y, WORLD_MIN_Y, is_solid,
++    survival::{DamageSource, Environment, GameMode, GameRule, StateEvent, SurvivalConfig},
++};
++use std::{path::PathBuf, time::SystemTime};
++
++#[derive(Clone, Copy, Debug)]
++pub enum PlayerAction {
++    SetMode(GameMode),
++    SetRule(GameRule, bool),
++    Respawn,
++    Travel { meters: f32, sprinting: bool },
++    Jump { sprinting: bool },
++    Damage { amount: f32, source: DamageSource },
++    MinedBlock,
++}
++#[derive(Message)]
++pub struct PlayerActionMessage(pub PlayerAction);
++#[derive(Message)]
++pub struct SurvivalStateChanged(pub StateEvent);
++
++#[derive(Default)]
++pub struct ReloadState {
++    checked: f64,
++    path: Option<PathBuf>,
++    stamp: Option<(SystemTime, u64)>,
++}
++
++pub fn reload_config(time: Res<Time<Real>>, mut game: ResMut<Game>, mut state: Local<ReloadState>) {
++    if state.checked > 0. && time.elapsed_secs_f64() - state.checked < 1. {
++        return;
++    }
++    state.checked = time.elapsed_secs_f64().max(f64::EPSILON);
++    let explicit_path = std::env::var_os("VOXEL_SURVIVAL_CONFIG").map(PathBuf::from);
++    let path = explicit_path
++        .clone()
++        .or_else(|| {
++            let p = std::env::current_exe()
++                .ok()?
++                .parent()?
++                .join("assets/data/survival.ron");
++            p.is_file().then_some(p)
++        })
++        .unwrap_or_else(|| PathBuf::from("assets/data/survival.ron"));
++    let stamp = std::fs::metadata(&path)
++        .ok()
++        .and_then(|m| m.modified().ok().map(|t| (t, m.len())));
++    if state.path.as_ref() == Some(&path) && state.stamp == stamp {
++        return;
++    }
++    state.path = Some(path.clone());
++    state.stamp = stamp;
++    if stamp.is_none() {
++        if explicit_path.is_some() {
++            warn!(
++                "Не удалось прочитать VOXEL_SURVIVAL_CONFIG={}; сохранена предыдущая конфигурация",
++                path.display()
++            );
++        }
++        return;
++    } // Без внешних файлов работает встроенная конфигурация.
++    let result = std::fs::read_to_string(&path)
++        .map_err(|e| e.to_string())
++        .and_then(|s| SurvivalConfig::from_ron(&s));
++    match result {
++        Ok(config) => {
++            if game.world_id.is_none() {
++                game.vitals.respawn(&config);
++            }
++            game.survival_config = config;
++            game.ui_dirty = true;
++            info!("Параметры выживания обновлены: {}", path.display());
++        }
++        Err(error) => warn!(
++            "Некорректный {}: {error}; сохранена предыдущая конфигурация",
++            path.display()
++        ),
++    }
++}
++
++fn publish(
++    game: &mut Game,
++    events: Vec<StateEvent>,
++    changed: &mut MessageWriter<SurvivalStateChanged>,
++) {
++    for event in events {
++        if let StateEvent::Died { source } = event {
++            game.flying = false;
++            game.velocity = Vec3::ZERO;
++            game.fall_peak = None;
++            game.status = format!(
++                "Причина смерти: {}",
++                match source {
++                    DamageSource::Fall => "падение",
++                    DamageSource::Drowning => "утопление",
++                    DamageSource::Starvation => "голод",
++                    DamageSource::Void => "граница мира",
++                    DamageSource::Lava => "лава",
++                    DamageSource::Fire => "огонь",
++                    DamageSource::Mob => "атака",
++                }
++            );
++            // Предметов пока нет: физическое выпадение подключается на этапе 3.
++            info!(
++                keep_inventory = game.game_rules.keep_inventory,
++                "Событие смерти для будущей системы предметов"
++            );
++            game.screen(Mode::Dead);
++        }
++        debug!(?event, "Изменение состояния игрока");
++        changed.write(SurvivalStateChanged(event));
++    }
++}
++
++pub fn apply_actions(
++    mut actions: MessageReader<PlayerActionMessage>,
++    mut game: ResMut<Game>,
++    mut console: ResMut<ConsoleState>,
++    mut changed: MessageWriter<SurvivalStateChanged>,
++) {
++    if game.world_id.is_none() {
++        actions.clear();
++        return;
++    }
++    for message in actions.read() {
++        let cfg = game.survival_config.clone();
++        let mode = game.game_mode;
++        if game.vitals.is_dead() && !matches!(message.0, PlayerAction::Respawn) {
++            continue;
++        }
++        match message.0 {
++            PlayerAction::SetMode(mode) => {
++                game.game_mode = mode;
++                game.flying = false;
++                game.fall_peak = None;
++                if mode == GameMode::Creative {
++                    game.vitals.respawn(&cfg);
++                }
++                console.feedback = format!(
++                    "Режим: {}",
++                    if mode == GameMode::Survival {
++                        "выживание"
++                    } else {
++                        "творческий"
++                    }
++                );
++                game.status.clone_from(&console.feedback);
++                game.ui_dirty = true;
++                info!(?mode, "Режим игрока изменён");
++            }
++            PlayerAction::SetRule(rule, value) => {
++                match rule {
++                    GameRule::KeepInventory => game.game_rules.keep_inventory = value,
++                    GameRule::NaturalRegeneration => game.game_rules.natural_regeneration = value,
++                }
++                console.feedback = format!("{rule:?} = {value}");
++                game.status.clone_from(&console.feedback);
++                info!(?rule, value, "Правило изменено");
++            }
++            PlayerAction::Respawn => {
++                if game.vitals.is_dead() {
++                    game.feet = game.spawn;
++                    game.velocity = Vec3::ZERO;
++                    game.flying = false;
++                    game.grounded = false;
++                    game.fall_peak = None;
++                    game.pending_respawn = true;
++                    game.vitals.respawn(&cfg);
++                    game.status.clear();
++                    game.screen(Mode::Playing);
++                }
++            }
++            PlayerAction::Travel { meters, sprinting } => {
++                if sprinting && meters.is_finite() && meters > 0. {
++                    game.vitals
++                        .exhaust(meters * cfg.sprint_per_meter, mode, &cfg);
++                }
++            }
++            PlayerAction::Jump { sprinting } => game.vitals.exhaust(
++                if sprinting {
++                    cfg.sprint_jump_exhaustion
++                } else {
++                    cfg.jump_exhaustion
++                },
++                mode,
++                &cfg,
++            ),
++            PlayerAction::MinedBlock => game.vitals.exhaust(cfg.mining_exhaustion, mode, &cfg),
++            PlayerAction::Damage { amount, source } => {
++                let events = game.vitals.damage(amount, source, mode, &cfg);
++                publish(&mut game, events, &mut changed);
++            }
++        }
++    }
++}
++
++fn safe_spawn(game: &Game) -> Vec3 {
++    let p = game.spawn.floor().as_ivec3();
++    let start = p.y.clamp(WORLD_MIN_Y + 1, WORLD_MAX_Y + 1);
++    let ys = (start..=WORLD_MAX_Y + 1).chain((WORLD_MIN_Y + 1..start).rev());
++    for y in ys {
++        if is_solid(game.world.block([p.x, y - 1, p.z]))
++            && game.world.block([p.x, y, p.z]) == AIR
++            && game.world.block([p.x, y + 1, p.z]) == AIR
++        {
++            return Vec3::new(game.spawn.x, y as f32, game.spawn.z);
++        }
++    }
++    game.spawn
++}
++
++pub fn simulate(
++    time: Res<Time<Real>>,
++    mut game: ResMut<Game>,
++    mut changed: MessageWriter<SurvivalStateChanged>,
++) {
++    if game.world_id.is_none() || game.mode != Mode::Playing {
++        return;
++    }
++    let key = [
++        (game.feet.x.floor() as i32).div_euclid(16),
++        (game.feet.z.floor() as i32).div_euclid(16),
++    ];
++    if !game.world.chunks.contains_key(&key) {
++        return;
++    }
++    if game.pending_respawn {
++        game.feet = safe_spawn(&game);
++        game.pending_respawn = false;
++    }
++    let eye = game.feet + Vec3::Y * (game.height - 0.15);
++    let environment = Environment {
++        underwater: game.world.block(eye.floor().as_ivec3().to_array()) == WATER,
++        // Блоки лавы/огня появятся на этапе 4; их урон уже проверяется в ядре.
++        in_lava: false,
++        in_fire: false,
++        out_of_world: game.feet.y < (WORLD_MIN_Y - 16) as f32
++            || game.feet.y > (WORLD_MAX_Y + 16) as f32,
++    };
++    let mode = game.game_mode;
++    let rules = game.game_rules;
++    let cfg = game.survival_config.clone();
++    let events = game
++        .vitals
++        .tick(time.delta_secs(), environment, mode, &rules, &cfg);
++    publish(&mut game, events, &mut changed);
++}
++
++// Подписчик событий отделён от изменения правил; HUD читает готовое состояние.
++pub fn observe_changes(mut changes: MessageReader<SurvivalStateChanged>) {
++    for event in changes.read() {
++        trace!(event=?event.0,"Событие для HUD/эффектов");
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn app() -> App {
++        let mut app = App::new();
++        app.init_resource::<Game>()
++            .init_resource::<ConsoleState>()
++            .add_message::<PlayerActionMessage>()
++            .add_message::<SurvivalStateChanged>()
++            .add_systems(Update, apply_actions);
++        app.world_mut().resource_mut::<Game>().world_id = Some("test".into());
++        app
++    }
++    #[test]
++    fn commands_change_modes_but_dead_players_cannot_bypass_respawn() {
++        let mut app = app();
++        app.world_mut()
++            .write_message(PlayerActionMessage(PlayerAction::SetMode(
++                GameMode::Creative,
++            )));
++        app.update();
++        assert_eq!(app.world().resource::<Game>().game_mode, GameMode::Creative);
++        app.world_mut()
++            .write_message(PlayerActionMessage(PlayerAction::Damage {
++                amount: 100.,
++                source: DamageSource::Fall,
++            }));
++        app.update();
++        assert!(!app.world().resource::<Game>().vitals.is_dead());
++        app.world_mut()
++            .write_message(PlayerActionMessage(PlayerAction::SetMode(
++                GameMode::Survival,
++            )));
++        app.world_mut()
++            .write_message(PlayerActionMessage(PlayerAction::Damage {
++                amount: 100.,
++                source: DamageSource::Fall,
++            }));
++        app.update();
++        assert_eq!(app.world().resource::<Game>().mode, Mode::Dead);
++        app.world_mut()
++            .write_message(PlayerActionMessage(PlayerAction::Respawn));
++        app.update();
++        let g = app.world().resource::<Game>();
++        assert!(!g.vitals.is_dead());
++        assert!(g.pending_respawn);
++        assert_eq!(g.mode, Mode::Playing);
++    }
++
++    #[test]
++    fn respawn_finds_space_above_a_built_roof_or_below_a_removed_floor() {
++        use game_core::{Chunk, STONE};
++        let mut game = Game {
++            spawn: Vec3::new(0.5, 90., 0.5),
++            ..Default::default()
++        };
++        game.world.insert(Chunk {
++            position: [0, 0],
++            sections: Default::default(),
++        });
++        for y in 89..=94 {
++            game.world.set([0, y, 0], STONE);
++        }
++        assert_eq!(safe_spawn(&game), Vec3::new(0.5, 95., 0.5));
++        for y in 89..=94 {
++            game.world.set([0, y, 0], AIR);
++        }
++        game.world.set([0, 80, 0], STONE);
++        assert_eq!(safe_spawn(&game), Vec3::new(0.5, 81., 0.5));
++        // Полный столбец до верхнего слоя мира оставляет свободное место над ним.
++        for y in 81..=WORLD_MAX_Y {
++            game.world.set([0, y, 0], STONE);
++        }
++        assert_eq!(safe_spawn(&game).y, (WORLD_MAX_Y + 1) as f32);
++    }
++}
+diff --git a/apps/client/src/ui.rs b/apps/client/src/ui.rs
+index 4959a5c..97372f9 100644
+--- a/apps/client/src/ui.rs
++++ b/apps/client/src/ui.rs
+@@ -1,6 +1,7 @@
+ //! Native Bevy menus and the in-game overlay. Screen changes are handled by the client.
+ mod presentation;
+ use crate::{
++    console::ConsoleState,
+     graphics_assets::BlockIcons,
+     session::{Game, Mode},
+ };
+@@ -15,6 +16,7 @@ use bevy::{
+     prelude::*,
+     ui_widgets::Button,
+ };
++use game_core::survival::GameMode;
+ 
+ #[derive(Clone, Debug)]
+ pub enum Action {
+@@ -37,6 +39,8 @@ pub enum Action {
+     FocusName,
+     FocusSeed,
+     RandomSeed,
++    CycleGameMode,
++    Respawn,
+     CommitSettings,
+ }
+ 
+@@ -63,6 +67,7 @@ pub fn plugin(app: &mut App) {
+             scroll_panels,
+             rebuild,
+             update_hud,
++            update_vitals,
+         )
+             .chain(),
+     );
+@@ -88,6 +93,7 @@ enum Tone {
+     Normal,
+     Quiet,
+     Selected,
++    Gold,
+ }
+ #[derive(Component)]
+ struct UiButton {
+@@ -104,6 +110,19 @@ struct DebugText;
+ struct PanelStatus;
+ #[derive(Component)]
+ struct DebugPanel;
++#[derive(Clone, Copy)]
++enum VitalKind {
++    Health,
++    Hunger,
++    Air,
++}
++#[derive(Component)]
++struct VitalText(VitalKind);
++#[derive(Component)]
++enum VitalNode {
++    Fill(VitalKind, usize),
++    AirPanel,
++}
+ 
+ fn node(commands: &mut Commands, parent: Entity, layout: Node, color: Color) -> Entity {
+     let child = commands.spawn((layout, BackgroundColor(color))).id();
+@@ -188,6 +207,15 @@ fn colors(tone: Tone, hover: bool) -> (Color, Color, Color) {
+             TEAL,
+             TEXT,
+         ),
++        Tone::Gold => (
++            if hover {
++                Color::srgb(0.29, 0.17, 0.36)
++            } else {
++                Color::srgba(0.16, 0.07, 0.23, 0.96)
++            },
++            AMBER,
++            TEXT,
++        ),
+         Tone::Normal => (
+             if hover {
+                 Color::srgb(0.21, 0.28, 0.29)
+@@ -372,6 +400,7 @@ fn rebuild(
+     mut commands: Commands,
+     mut game: ResMut<Game>,
+     icons: Res<BlockIcons>,
++    console: Res<ConsoleState>,
+     old: Query<Entity, With<UiRoot>>,
+ ) {
+     if !game.ui_dirty {
+@@ -412,18 +441,26 @@ fn rebuild(
+     }
+     let width = match game.mode {
+         Mode::Inventory => 790.,
+-        Mode::Create => 840.,
++        Mode::Create | Mode::Console => 840.,
+         Mode::Load => 710.,
+         Mode::Settings => 640.,
+         _ => 540.,
+     };
+     let panel = card(&mut commands, root, width);
++    if matches!(game.mode, Mode::Dead | Mode::Console) {
++        commands.entity(panel).insert((
++            BackgroundColor(Color::srgba(0.10, 0.045, 0.16, 0.98)),
++            BorderColor::all(AMBER),
++        ));
++    }
+     match game.mode {
+         Mode::Create => create_menu(&mut commands, panel, &game),
+         Mode::Load => load_menu(&mut commands, panel, &game),
+         Mode::Settings => settings_menu(&mut commands, panel, &game),
+         Mode::Paused => pause_menu(&mut commands, panel, &game),
+         Mode::Inventory => inventory_menu(&mut commands, panel, &game),
++        Mode::Dead => death_menu(&mut commands, panel, &game),
++        Mode::Console => console_menu(&mut commands, panel, &console),
+         Mode::Menu | Mode::Playing => {}
+     }
+ }
+@@ -655,6 +692,16 @@ fn create_menu(commands: &mut Commands, panel: Entity, game: &Game) {
+         12.,
+         MUTED,
+     );
++    button(
++        commands,
++        form,
++        match game.creation_mode {
++            GameMode::Survival => "Режим: Выживание  ↻",
++            GameMode::Creative => "Режим: Творческий  ↻",
++        },
++        Action::CycleGameMode,
++        Tone::Gold,
++    );
+     node(
+         commands,
+         form,
+@@ -773,6 +820,74 @@ fn pause_menu(commands: &mut Commands, panel: Entity, game: &Game) {
+     label(commands, panel, "Esc: продолжить", 12.0, MUTED);
+ }
+ 
++fn death_menu(commands: &mut Commands, panel: Entity, game: &Game) {
++    heading(
++        commands,
++        panel,
++        "ПРИКЛЮЧЕНИЕ ПРОДОЛЖАЕТСЯ",
++        "Вы погибли",
++        "Возродитесь у точки появления мира.",
++    );
++    button(
++        commands,
++        panel,
++        "Возродиться",
++        Action::Respawn,
++        Tone::Primary,
++    );
++    button(
++        commands,
++        panel,
++        "Главное меню",
++        Action::MainMenu,
++        Tone::Gold,
++    );
++    status(commands, panel, game);
++}
++
++fn console_menu(commands: &mut Commands, panel: Entity, console: &ConsoleState) {
++    heading(
++        commands,
++        panel,
++        "КОМАНДЫ МИРА",
++        "Консоль",
++        "Enter: выполнить команду. Esc: вернуться в мир.",
++    );
++    let field = node(
++        commands,
++        panel,
++        Node {
++            width: percent(100),
++            min_height: px(52),
++            padding: UiRect::all(px(14)),
++            border: UiRect::all(px(1)),
++            border_radius: BorderRadius::all(px(4)),
++            flex_shrink: 0.0,
++            ..default()
++        },
++        Color::srgba(0.16, 0.07, 0.23, 0.96),
++    );
++    commands.entity(field).insert(BorderColor::all(AMBER));
++    label(commands, field, format!("{} |", console.input), 17., TEXT);
++    if !console.feedback.is_empty() {
++        label(commands, panel, &console.feedback, 14., AMBER);
++    }
++    label(
++        commands,
++        panel,
++        "/gamemode survival | creative\n/gamerule keepInventory true | false",
++        14.,
++        MUTED,
++    );
++    button(
++        commands,
++        panel,
++        "Вернуться в мир",
++        Action::Resume,
++        Tone::Gold,
++    );
++}
++
+ fn settings_row(commands: &mut Commands, panel: Entity, name: &str, value: String, action: Action) {
+     let row = row(commands, panel, 12.0);
+     let caption = label(commands, row, name, 16.0, TEXT);
+@@ -1054,6 +1169,9 @@ fn hud(commands: &mut Commands, root: Entity, game: &Game, icons: &BlockIcons) {
+         },
+         Color::NONE,
+     );
++    if game.game_mode == GameMode::Survival {
++        survival_hud(commands, bar_frame, game);
++    }
+     let bar = node(
+         commands,
+         bar_frame,
+@@ -1110,6 +1228,186 @@ fn hud(commands: &mut Commands, root: Entity, game: &Game, icons: &BlockIcons) {
+     }
+ }
+ 
++fn survival_hud(commands: &mut Commands, parent: Entity, game: &Game) {
++    let air = vital_meter(commands, parent, game, VitalKind::Air, 304.);
++    commands.entity(air).insert(VitalNode::AirPanel);
++    let meters = node(
++        commands,
++        parent,
++        Node {
++            width: px(628),
++            column_gap: px(12),
++            ..default()
++        },
++        Color::NONE,
++    );
++    vital_meter(commands, meters, game, VitalKind::Health, 308.);
++    vital_meter(commands, meters, game, VitalKind::Hunger, 308.);
++}
++
++fn vital_meter(
++    commands: &mut Commands,
++    parent: Entity,
++    game: &Game,
++    kind: VitalKind,
++    width: f32,
++) -> Entity {
++    let (title, glyph, color) = match kind {
++        VitalKind::Health => ("Здоровье", "♥", Color::srgb(1.0, 0.40, 0.46)),
++        VitalKind::Hunger => ("Голод", "◆", AMBER),
++        VitalKind::Air => ("Воздух", "●", Color::srgb(0.46, 0.80, 1.0)),
++    };
++    let panel = node(
++        commands,
++        parent,
++        Node {
++            width: px(width),
++            padding: UiRect::axes(px(10), px(5)),
++            border: UiRect::all(px(1)),
++            border_radius: BorderRadius::all(px(4)),
++            flex_direction: FlexDirection::Column,
++            row_gap: px(1),
++            ..default()
++        },
++        Color::srgba(0.12, 0.055, 0.19, 0.92),
++    );
++    commands
++        .entity(panel)
++        .insert(BorderColor::all(Color::srgba(0.79, 0.54, 0.22, 0.80)));
++    let header = row(commands, panel, 6.);
++    let caption = label(commands, header, title, 11., MUTED);
++    commands.entity(caption).insert(Node {
++        flex_grow: 1.,
++        ..default()
++    });
++    let count = label(commands, header, vital_label(game, kind), 11., TEXT);
++    commands.entity(count).insert(VitalText(kind));
++    let cells = node(
++        commands,
++        panel,
++        Node {
++            width: percent(100),
++            justify_content: JustifyContent::SpaceBetween,
++            ..default()
++        },
++        Color::NONE,
++    );
++    let (current, max) = vital_value(game, kind);
++    for index in 0..10 {
++        let cell = node(
++            commands,
++            cells,
++            Node {
++                width: px(24),
++                height: px(22),
++                flex_shrink: 0.,
++                ..default()
++            },
++            Color::NONE,
++        );
++        let empty = label(
++            commands,
++            cell,
++            glyph,
++            21.,
++            Color::srgba(0.58, 0.45, 0.65, 0.48),
++        );
++        commands.entity(empty).insert(Node {
++            position_type: PositionType::Absolute,
++            left: px(5),
++            top: px(-2),
++            ..default()
++        });
++        // Обрезка глифа показывает половинки сердец и оставшуюся долю воздуха.
++        let fill = node(
++            commands,
++            cell,
++            Node {
++                position_type: PositionType::Absolute,
++                width: percent(vital_fraction(current, max, index) * 100.),
++                height: percent(100),
++                overflow: Overflow::clip(),
++                ..default()
++            },
++            Color::NONE,
++        );
++        commands.entity(fill).insert(VitalNode::Fill(kind, index));
++        let icon = label(commands, fill, glyph, 21., color);
++        commands.entity(icon).insert(Node {
++            position_type: PositionType::Absolute,
++            left: px(5),
++            top: px(-2),
++            width: px(24),
++            flex_shrink: 0.,
++            ..default()
++        });
++    }
++    panel
++}
++
++fn vital_value(game: &Game, kind: VitalKind) -> (f32, f32) {
++    let (value, max) = match kind {
++        VitalKind::Health => (game.vitals.health, game.survival_config.max_health),
++        VitalKind::Hunger => (game.vitals.hunger, game.survival_config.max_hunger),
++        VitalKind::Air => (game.vitals.air_seconds, game.survival_config.air_seconds),
++    };
++    let max = max.max(f32::EPSILON);
++    (value.clamp(0., max), max)
++}
++
++fn vital_fraction(value: f32, max: f32, index: usize) -> f32 {
++    (value / max * 10. - index as f32).clamp(0., 1.)
++}
++
++fn vital_label(game: &Game, kind: VitalKind) -> String {
++    let (value, max) = vital_value(game, kind);
++    match kind {
++        VitalKind::Air => format!("{:.0} с", value.ceil()),
++        VitalKind::Health | VitalKind::Hunger => format!("{:.0} / {max:.0}", value.ceil()),
++    }
++}
++
++fn update_vitals(
++    game: Res<Game>,
++    mut nodes: Query<(&VitalNode, &mut Node)>,
++    mut texts: Query<(&VitalText, &mut Text)>,
++) {
++    if game.mode != Mode::Playing {
++        return;
++    }
++    let eye = game.feet + Vec3::Y * (game.height - 0.15);
++    let underwater = game.world.block(eye.floor().as_ivec3().to_array()) == game_core::WATER;
++    for (vital, mut node) in &mut nodes {
++        match *vital {
++            VitalNode::Fill(kind, index) => {
++                let (value, max) = vital_value(&game, kind);
++                let width = percent(vital_fraction(value, max, index) * 100.);
++                if node.width != width {
++                    node.width = width;
++                }
++            }
++            VitalNode::AirPanel => {
++                let display = if game.game_mode == GameMode::Survival
++                    && (underwater || game.vitals.air_seconds < game.survival_config.air_seconds)
++                {
++                    Display::Flex
++                } else {
++                    Display::None
++                };
++                if node.display != display {
++                    node.display = display;
++                }
++            }
++        }
++    }
++    for (kind, mut text) in &mut texts {
++        let value = vital_label(&game, kind.0);
++        if text.0 != value {
++            text.0 = value;
++        }
++    }
++}
++
+ fn update_hud(
+     game: Res<Game>,
+     icons: Res<BlockIcons>,
+diff --git a/assets/data/examples/blocks.ron b/assets/data/examples/blocks.ron
+new file mode 100644
+index 0000000..c817ffe
+--- /dev/null
++++ b/assets/data/examples/blocks.ron
+@@ -0,0 +1,11 @@
++// Предложение схемы этапа 1; это не действующий каталог блоков.
++[
++    (
++        id: "foundation:stone", name: "Камень",
++        textures: (top: 3, side: 3, bottom: 3),
++        hardness: 1.5, tool_type: Pickaxe, min_tier: 0,
++        requires_tool: true,
++        drops: [(item: "foundation:cobblestone", min: 1, max: 1, chance: 1.0)],
++        xp: 0, collision: true, opacity: true, light_emission: 0,
++    ),
++]
+diff --git a/assets/data/examples/items.ron b/assets/data/examples/items.ron
+new file mode 100644
+index 0000000..c67133a
+--- /dev/null
++++ b/assets/data/examples/items.ron
+@@ -0,0 +1,19 @@
++// Предложение схемы; все предметные ссылки остальных примеров объявлены здесь.
++// Базовые блоки разрешаются через таблицу Foundation в SURVIVAL_V2_PLAN.md.
++[
++    (id: "foundation:stone", name: "Камень", max_stack: 64,
++     kind: Block(block: "foundation:stone")),
++    (id: "foundation:deepslate", name: "Глубинный камень", max_stack: 64,
++     kind: Block(block: "foundation:deepslate")),
++    (id: "foundation:cobblestone", name: "Булыжник", max_stack: 64,
++     kind: Block(block: "foundation:cobblestone")),
++    (id: "foundation:oak_log", name: "Бревно", max_stack: 64,
++     kind: Block(block: "foundation:oak_log")),
++    (id: "foundation:oak_planks", name: "Доски", max_stack: 64,
++     kind: Block(block: "foundation:oak_planks")),
++    (id: "survival:coal_ore", name: "Угольная руда", max_stack: 64,
++     kind: Block(block: "survival:coal_ore")),
++    (id: "survival:coal", name: "Уголь", max_stack: 64, kind: Material),
++    (id: "survival:wooden_pickaxe", name: "Деревянная кирка", max_stack: 1,
++     kind: Tool),
++]
+diff --git a/assets/data/examples/ores.ron b/assets/data/examples/ores.ron
+new file mode 100644
+index 0000000..ef45308
+--- /dev/null
++++ b/assets/data/examples/ores.ron
+@@ -0,0 +1,14 @@
++// Предложение схемы; запись объявляет рудный блок по своему строковому ID.
++[
++    (
++        id: "survival:coal_ore",
++        replaces: ["foundation:stone", "foundation:deepslate"],
++        y_min: 0, y_max: 192, distribution: Triangular,
++        veins_per_chunk: 20, max_vein_size: 17,
++        hardness: 3.0, tool_type: Pickaxe, min_tier: 0, requires_tool: true,
++        drops: [(item: "survival:coal", min: 1, max: 1, chance: 1.0)],
++        xp: (min: 0, max: 2),
++        textures: (stone_layer: 3, deepslate_layer: 4, deepslate_below_y: 0,
++                   overlay_layer: 18), // TODO(art): новый оверлей; слой 17 пуст.
++    ),
++]
+diff --git a/assets/data/examples/recipes.ron b/assets/data/examples/recipes.ron
+new file mode 100644
+index 0000000..440691b
+--- /dev/null
++++ b/assets/data/examples/recipes.ron
+@@ -0,0 +1,9 @@
++// Предложение схемы; ингредиенты и результат — ID предметов, не блоков.
++[
++    (
++        id: "survival:planks_from_log",
++        kind: Shapeless,
++        inputs: [(item: "foundation:oak_log", count: 1)],
++        output: (item: "foundation:oak_planks", count: 4),
++    ),
++]
+diff --git a/assets/data/examples/tools.ron b/assets/data/examples/tools.ron
+new file mode 100644
+index 0000000..21f890a
+--- /dev/null
++++ b/assets/data/examples/tools.ron
+@@ -0,0 +1,8 @@
++// Предложение схемы; ID совпадает с предметом kind: Tool в items.ron.
++[
++    (
++        id: "survival:wooden_pickaxe", tool_type: Pickaxe,
++        // Базовые характеристики дерева; sword_damage относится к мечу материала.
++        material_stats: (durability: 59, speed: 2.0, sword_damage: 4.0, tier: 0),
++    ),
++]
+diff --git a/assets/data/survival.ron b/assets/data/survival.ron
+new file mode 100644
+index 0000000..acbac82
+--- /dev/null
++++ b/assets/data/survival.ron
+@@ -0,0 +1,33 @@
++// Этап 2: параметры здоровья, голода и воздействий среды.
++(
++    max_health: 20.0,
++    max_hunger: 20.0,
++    max_saturation: 20.0,
++    initial_saturation: 5.0,
++    exhaustion_step: 4.0,
++    sprint_per_meter: 0.1,
++    jump_exhaustion: 0.05,
++    sprint_jump_exhaustion: 0.2,
++    damage_exhaustion: 0.1,
++    mining_exhaustion: 0.005,
++    attack_exhaustion: 0.1,
++    regen_hunger: 18.0,
++    regen_interval: 4.0,
++    regen_amount: 1.0,
++    regen_exhaustion: 6.0,
++    starvation_interval: 4.0,
++    starvation_damage: 1.0,
++    starvation_floor: 2.0,
++    air_seconds: 15.0,
++    drowning_interval: 1.0,
++    drowning_damage: 2.0,
++    fall_safe_distance: 3.0,
++    fall_damage_per_block: 1.0,
++    lava_interval: 0.5,
++    lava_damage: 4.0,
++    fire_interval: 1.0,
++    fire_damage: 1.0,
++    burn_seconds: 8.0,
++    void_interval: 1.0,
++    void_damage: 4.0,
++)
+diff --git a/crates/game_core/Cargo.toml b/crates/game_core/Cargo.toml
+index f71e50e..71ea156 100644
+--- a/crates/game_core/Cargo.toml
++++ b/crates/game_core/Cargo.toml
+@@ -7,3 +7,4 @@ publish = false
+ [dependencies]
+ serde.workspace = true
+ serde_json.workspace = true
++ron = "=0.12.3"
+diff --git a/crates/game_core/src/lib.rs b/crates/game_core/src/lib.rs
+index af6986c..f5a4f96 100644
+--- a/crates/game_core/src/lib.rs
++++ b/crates/game_core/src/lib.rs
+@@ -6,6 +6,7 @@ pub mod world;
+ pub use world::*;
+ pub mod interaction;
+ pub mod persistence;
++pub mod survival;
+ 
+ /// Inclusive lower bound of the overworld.
+ pub const WORLD_MIN_Y: i32 = -64;
+diff --git a/crates/game_core/src/survival.rs b/crates/game_core/src/survival.rs
+new file mode 100644
+index 0000000..d3ba091
+--- /dev/null
++++ b/crates/game_core/src/survival.rs
+@@ -0,0 +1,786 @@
++//! Независимые от ввода и рендера правила выживания.
++
++use serde::{Deserialize, Serialize};
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
++pub enum GameMode {
++    #[default]
++    Survival,
++    Creative,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum GameRule {
++    KeepInventory,
++    NaturalRegeneration,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(deny_unknown_fields)]
++pub struct GameRules {
++    pub keep_inventory: bool,
++    pub natural_regeneration: bool,
++}
++
++impl Default for GameRules {
++    fn default() -> Self {
++        Self {
++            keep_inventory: false,
++            natural_regeneration: true,
++        }
++    }
++}
++
++#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
++#[serde(deny_unknown_fields)]
++pub struct SurvivalConfig {
++    pub max_health: f32,
++    pub max_hunger: f32,
++    pub max_saturation: f32,
++    pub initial_saturation: f32,
++    pub exhaustion_step: f32,
++    pub sprint_per_meter: f32,
++    pub jump_exhaustion: f32,
++    pub sprint_jump_exhaustion: f32,
++    pub damage_exhaustion: f32,
++    pub mining_exhaustion: f32,
++    pub attack_exhaustion: f32,
++    pub regen_hunger: f32,
++    pub regen_interval: f32,
++    pub regen_amount: f32,
++    pub regen_exhaustion: f32,
++    pub starvation_interval: f32,
++    pub starvation_damage: f32,
++    pub starvation_floor: f32,
++    pub air_seconds: f32,
++    pub drowning_interval: f32,
++    pub drowning_damage: f32,
++    pub fall_safe_distance: f32,
++    pub fall_damage_per_block: f32,
++    pub lava_interval: f32,
++    pub lava_damage: f32,
++    pub fire_interval: f32,
++    pub fire_damage: f32,
++    pub burn_seconds: f32,
++    pub void_interval: f32,
++    pub void_damage: f32,
++}
++
++impl Default for SurvivalConfig {
++    fn default() -> Self {
++        Self::from_ron(include_str!("../../../assets/data/survival.ron")).unwrap_or(Self::FALLBACK)
++    }
++}
++
++impl SurvivalConfig {
++    // Резерв нужен только при ошибке во встроенном файле; внешние ошибки возвращаются вызывающему коду.
++    const FALLBACK: Self = Self {
++        max_health: 20.0,
++        max_hunger: 20.0,
++        max_saturation: 20.0,
++        initial_saturation: 5.0,
++        exhaustion_step: 4.0,
++        sprint_per_meter: 0.1,
++        jump_exhaustion: 0.05,
++        sprint_jump_exhaustion: 0.2,
++        damage_exhaustion: 0.1,
++        mining_exhaustion: 0.005,
++        attack_exhaustion: 0.1,
++        regen_hunger: 18.0,
++        regen_interval: 4.0,
++        regen_amount: 1.0,
++        regen_exhaustion: 6.0,
++        starvation_interval: 4.0,
++        starvation_damage: 1.0,
++        starvation_floor: 2.0,
++        air_seconds: 15.0,
++        drowning_interval: 1.0,
++        drowning_damage: 2.0,
++        fall_safe_distance: 3.0,
++        fall_damage_per_block: 1.0,
++        lava_interval: 0.5,
++        lava_damage: 4.0,
++        fire_interval: 1.0,
++        fire_damage: 1.0,
++        burn_seconds: 8.0,
++        void_interval: 1.0,
++        void_damage: 4.0,
++    };
++
++    pub fn from_ron(source: &str) -> Result<Self, String> {
++        let config: Self = ron::from_str(source)
++            .map_err(|error| format!("Ошибка параметров выживания: {error}"))?;
++        config.validate()?;
++        Ok(config)
++    }
++
++    pub fn validate(&self) -> Result<(), String> {
++        for (name, value, minimum, maximum) in [
++            ("max_health", self.max_health, 1.0, 1000.0),
++            ("max_hunger", self.max_hunger, 1.0, 1000.0),
++            ("max_saturation", self.max_saturation, 0.0, 1000.0),
++            (
++                "initial_saturation",
++                self.initial_saturation,
++                0.0,
++                self.max_saturation,
++            ),
++            ("exhaustion_step", self.exhaustion_step, 0.001, 1000.0),
++            ("sprint_per_meter", self.sprint_per_meter, 0.0, 1000.0),
++            ("jump_exhaustion", self.jump_exhaustion, 0.0, 1000.0),
++            (
++                "sprint_jump_exhaustion",
++                self.sprint_jump_exhaustion,
++                0.0,
++                1000.0,
++            ),
++            ("damage_exhaustion", self.damage_exhaustion, 0.0, 1000.0),
++            ("mining_exhaustion", self.mining_exhaustion, 0.0, 1000.0),
++            ("attack_exhaustion", self.attack_exhaustion, 0.0, 1000.0),
++            ("regen_hunger", self.regen_hunger, 0.001, self.max_hunger),
++            ("regen_interval", self.regen_interval, 0.001, 3600.0),
++            ("regen_amount", self.regen_amount, 0.001, self.max_health),
++            ("regen_exhaustion", self.regen_exhaustion, 0.001, 1000.0),
++            (
++                "starvation_interval",
++                self.starvation_interval,
++                0.001,
++                3600.0,
++            ),
++            ("starvation_damage", self.starvation_damage, 0.001, 1000.0),
++            (
++                "starvation_floor",
++                self.starvation_floor,
++                0.0,
++                self.max_health,
++            ),
++            ("air_seconds", self.air_seconds, 0.001, 3600.0),
++            ("drowning_interval", self.drowning_interval, 0.001, 3600.0),
++            ("drowning_damage", self.drowning_damage, 0.001, 1000.0),
++            ("fall_safe_distance", self.fall_safe_distance, 0.0, 1000.0),
++            (
++                "fall_damage_per_block",
++                self.fall_damage_per_block,
++                0.001,
++                1000.0,
++            ),
++            ("lava_interval", self.lava_interval, 0.001, 3600.0),
++            ("lava_damage", self.lava_damage, 0.001, 1000.0),
++            ("fire_interval", self.fire_interval, 0.001, 3600.0),
++            ("fire_damage", self.fire_damage, 0.001, 1000.0),
++            ("burn_seconds", self.burn_seconds, 0.0, 3600.0),
++            ("void_interval", self.void_interval, 0.001, 3600.0),
++            ("void_damage", self.void_damage, 0.001, 1000.0),
++        ] {
++            if !value.is_finite() || value < minimum || value > maximum {
++                return Err(format!(
++                    "Параметр {name} должен быть конечным числом от {minimum} до {maximum}"
++                ));
++            }
++        }
++        Ok(())
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum DamageSource {
++    Fall,
++    Drowning,
++    Lava,
++    Fire,
++    Starvation,
++    Void,
++    Mob,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub enum StateEvent {
++    Damaged { source: DamageSource, amount: f32 },
++    Healed { amount: f32 },
++    Died { source: DamageSource },
++}
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct Environment {
++    pub underwater: bool,
++    pub in_lava: bool,
++    pub in_fire: bool,
++    pub out_of_world: bool,
++}
++
++#[derive(Clone, Debug, PartialEq)]
++pub struct Vitals {
++    pub health: f32,
++    pub hunger: f32,
++    pub saturation: f32,
++    pub exhaustion: f32,
++    pub air_seconds: f32,
++    pub burning_seconds: f32,
++    regen_elapsed: f64,
++    starvation_elapsed: f64,
++    drowning_elapsed: f64,
++    lava_elapsed: f64,
++    fire_elapsed: f64,
++    void_elapsed: f64,
++    dead_notified: bool,
++}
++
++impl Vitals {
++    pub fn new(cfg: &SurvivalConfig) -> Self {
++        let cfg = if cfg.validate().is_ok() {
++            cfg
++        } else {
++            &SurvivalConfig::FALLBACK
++        };
++        Self {
++            health: cfg.max_health,
++            hunger: cfg.max_hunger,
++            saturation: cfg.initial_saturation,
++            exhaustion: 0.0,
++            air_seconds: cfg.air_seconds,
++            burning_seconds: 0.0,
++            regen_elapsed: 0.0,
++            starvation_elapsed: 0.0,
++            drowning_elapsed: 0.0,
++            lava_elapsed: 0.0,
++            fire_elapsed: 0.0,
++            void_elapsed: 0.0,
++            dead_notified: false,
++        }
++    }
++
++    pub fn is_dead(&self) -> bool {
++        self.health <= 0.0 || self.dead_notified
++    }
++
++    pub fn damage(
++        &mut self,
++        amount: f32,
++        source: DamageSource,
++        mode: GameMode,
++        cfg: &SurvivalConfig,
++    ) -> Vec<StateEvent> {
++        if mode == GameMode::Creative
++            || self.is_dead()
++            || !amount.is_finite()
++            || amount <= 0.0
++            || cfg.validate().is_err()
++            || !self.finite()
++        {
++            return Vec::new();
++        }
++        let available = if source == DamageSource::Starvation {
++            (self.health - cfg.starvation_floor).max(0.0)
++        } else {
++            self.health
++        };
++        let actual = amount.min(available);
++        if actual <= 0.0 {
++            return Vec::new();
++        }
++        self.exhaust(cfg.damage_exhaustion, mode, cfg);
++        self.health = (self.health - actual).max(0.0);
++        let mut events = vec![StateEvent::Damaged {
++            source,
++            amount: actual,
++        }];
++        if self.is_dead() && !self.dead_notified {
++            self.dead_notified = true;
++            events.push(StateEvent::Died { source });
++        }
++        events
++    }
++
++    pub fn exhaust(&mut self, amount: f32, mode: GameMode, cfg: &SurvivalConfig) {
++        if mode == GameMode::Creative
++            || self.is_dead()
++            || !amount.is_finite()
++            || amount <= 0.0
++            || cfg.validate().is_err()
++            || !self.finite()
++        {
++            return;
++        }
++        // f64 позволяет обработать большой конечный расход без переполнения и длинного цикла.
++        let total = f64::from(self.exhaustion) + f64::from(amount);
++        let step = f64::from(cfg.exhaustion_step);
++        let units = (total / step).floor();
++        let saturation_units = units.min(f64::from(self.saturation.ceil()));
++        self.saturation = (f64::from(self.saturation) - saturation_units).max(0.0) as f32;
++        self.hunger = (f64::from(self.hunger) - (units - saturation_units)).max(0.0) as f32;
++        self.exhaustion = (total % step) as f32;
++    }
++
++    pub fn tick(
++        &mut self,
++        dt: f32,
++        environment: Environment,
++        mode: GameMode,
++        rules: &GameRules,
++        cfg: &SurvivalConfig,
++    ) -> Vec<StateEvent> {
++        if mode == GameMode::Creative
++            || self.is_dead()
++            || !dt.is_finite()
++            || dt <= 0.0
++            || cfg.validate().is_err()
++            || !self.finite()
++        {
++            return Vec::new();
++        }
++        self.health = self.health.min(cfg.max_health);
++        self.hunger = self.hunger.min(cfg.max_hunger);
++        self.saturation = self.saturation.min(cfg.max_saturation);
++        self.air_seconds = self.air_seconds.min(cfg.air_seconds);
++        if !environment.underwater {
++            self.air_seconds = cfg.air_seconds;
++            self.drowning_elapsed = 0.0;
++        }
++        let contact = environment.in_lava || environment.in_fire;
++        if contact {
++            self.burning_seconds = cfg.burn_seconds;
++        }
++
++        let mut events = Vec::new();
++        let mut remaining = f64::from(dt);
++        const EPSILON: f64 = 1.0e-7;
++        // Разбиваем кадр по ближайшему событию: воздух и горение не действуют задним числом.
++        while remaining > 0.0 && !self.is_dead() {
++            let regeneration = rules.natural_regeneration
++                && self.hunger >= cfg.regen_hunger
++                && self.health < cfg.max_health;
++            let starvation = self.hunger <= 0.0 && self.health > cfg.starvation_floor;
++            let drowning = environment.underwater && self.air_seconds <= 0.0;
++            let lava = environment.in_lava;
++            let fire = !lava && (environment.in_fire || self.burning_seconds > 0.0);
++            let void = environment.out_of_world;
++            let mut step = remaining;
++            for (active, elapsed, interval) in [
++                (regeneration, &mut self.regen_elapsed, cfg.regen_interval),
++                (
++                    starvation,
++                    &mut self.starvation_elapsed,
++                    cfg.starvation_interval,
++                ),
++                (drowning, &mut self.drowning_elapsed, cfg.drowning_interval),
++                (lava, &mut self.lava_elapsed, cfg.lava_interval),
++                (fire, &mut self.fire_elapsed, cfg.fire_interval),
++                (void, &mut self.void_elapsed, cfg.void_interval),
++            ] {
++                if active {
++                    step = step.min((f64::from(interval) - *elapsed).max(0.0));
++                } else {
++                    *elapsed = 0.0;
++                }
++            }
++            if environment.underwater && self.air_seconds > 0.0 {
++                step = step.min(f64::from(self.air_seconds));
++            }
++            if !contact && self.burning_seconds > 0.0 {
++                step = step.min(f64::from(self.burning_seconds));
++            }
++            for (active, elapsed) in [
++                (regeneration, &mut self.regen_elapsed),
++                (starvation, &mut self.starvation_elapsed),
++                (drowning, &mut self.drowning_elapsed),
++                (lava, &mut self.lava_elapsed),
++                (fire, &mut self.fire_elapsed),
++                (void, &mut self.void_elapsed),
++            ] {
++                if active {
++                    *elapsed += step;
++                }
++            }
++            if environment.underwater {
++                self.air_seconds = (f64::from(self.air_seconds) - step).max(0.0) as f32;
++            }
++            if !contact {
++                self.burning_seconds = (f64::from(self.burning_seconds) - step).max(0.0) as f32;
++            }
++            remaining = (remaining - step).max(0.0);
++
++            let mut pending_damage = Vec::new();
++            for (active, source, elapsed, interval, amount) in [
++                (
++                    drowning,
++                    DamageSource::Drowning,
++                    &mut self.drowning_elapsed,
++                    cfg.drowning_interval,
++                    cfg.drowning_damage,
++                ),
++                (
++                    lava,
++                    DamageSource::Lava,
++                    &mut self.lava_elapsed,
++                    cfg.lava_interval,
++                    cfg.lava_damage,
++                ),
++                (
++                    fire,
++                    DamageSource::Fire,
++                    &mut self.fire_elapsed,
++                    cfg.fire_interval,
++                    cfg.fire_damage,
++                ),
++                (
++                    void,
++                    DamageSource::Void,
++                    &mut self.void_elapsed,
++                    cfg.void_interval,
++                    cfg.void_damage,
++                ),
++                (
++                    starvation,
++                    DamageSource::Starvation,
++                    &mut self.starvation_elapsed,
++                    cfg.starvation_interval,
++                    cfg.starvation_damage,
++                ),
++            ] {
++                if active && *elapsed + EPSILON >= f64::from(interval) {
++                    *elapsed = (*elapsed - f64::from(interval)).max(0.0);
++                    // Применяем после освобождения ссылки на таймер ниже.
++                    pending_damage.push((source, amount));
++                }
++            }
++            // Применяем только новые отметки этого шага, не повторяя уже выданный урон.
++            for (source, amount) in pending_damage {
++                events.extend(self.damage(amount, source, mode, cfg));
++            }
++            if regeneration && self.regen_elapsed + EPSILON >= f64::from(cfg.regen_interval) {
++                self.regen_elapsed = (self.regen_elapsed - f64::from(cfg.regen_interval)).max(0.0);
++                if !self.is_dead() && self.hunger >= cfg.regen_hunger {
++                    let amount = cfg.regen_amount.min(cfg.max_health - self.health);
++                    if amount > 0.0 {
++                        self.health += amount;
++                        self.exhaust(cfg.regen_exhaustion, mode, cfg);
++                        events.push(StateEvent::Healed { amount });
++                    }
++                }
++            }
++        }
++        events
++    }
++
++    pub fn respawn(&mut self, cfg: &SurvivalConfig) {
++        *self = Self::new(cfg);
++    }
++
++    fn finite(&self) -> bool {
++        [
++            self.health,
++            self.hunger,
++            self.saturation,
++            self.exhaustion,
++            self.air_seconds,
++            self.burning_seconds,
++        ]
++        .into_iter()
++        .all(|value| value.is_finite() && value >= 0.0)
++    }
++}
++
++pub fn fall_damage(distance: f32, cfg: &SurvivalConfig) -> f32 {
++    if !distance.is_finite() || distance <= 0.0 || cfg.validate().is_err() {
++        return 0.0;
++    }
++    let blocks = f64::from((distance - cfg.fall_safe_distance).max(0.0).floor());
++    (blocks * f64::from(cfg.fall_damage_per_block)).min(f64::from(f32::MAX)) as f32
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn tick(vitals: &mut Vitals, seconds: f32, environment: Environment) -> Vec<StateEvent> {
++        vitals.tick(
++            seconds,
++            environment,
++            GameMode::Survival,
++            &GameRules::default(),
++            &SurvivalConfig::default(),
++        )
++    }
++
++    #[test]
++    fn creative_ignores_damage_exhaustion_and_environment() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        let before = vitals.clone();
++        assert!(
++            vitals
++                .damage(100.0, DamageSource::Void, GameMode::Creative, &cfg)
++                .is_empty()
++        );
++        vitals.exhaust(100.0, GameMode::Creative, &cfg);
++        let environment = Environment {
++            underwater: true,
++            in_lava: true,
++            in_fire: true,
++            out_of_world: true,
++        };
++        assert!(
++            vitals
++                .tick(
++                    100.0,
++                    environment,
++                    GameMode::Creative,
++                    &GameRules::default(),
++                    &cfg
++                )
++                .is_empty()
++        );
++        assert_eq!(vitals, before);
++    }
++
++    #[test]
++    fn exhaustion_consumes_saturation_before_hunger_at_exact_boundary() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        vitals.saturation = 1.0;
++        vitals.exhaust(3.5, GameMode::Survival, &cfg);
++        assert_eq!(vitals.saturation, 1.0);
++        vitals.exhaust(0.5, GameMode::Survival, &cfg);
++        assert_eq!(
++            (vitals.saturation, vitals.hunger, vitals.exhaustion),
++            (0.0, 20.0, 0.0)
++        );
++        vitals.exhaust(8.5, GameMode::Survival, &cfg);
++        assert_eq!(
++            (vitals.saturation, vitals.hunger, vitals.exhaustion),
++            (0.0, 18.0, 0.5)
++        );
++    }
++
++    #[test]
++    fn regeneration_spends_saturation_and_respects_hunger_and_rule() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        vitals.health = 18.0;
++        assert!(tick(&mut vitals, 3.0, Environment::default()).is_empty());
++        assert_eq!(
++            tick(&mut vitals, 1.0, Environment::default()),
++            vec![StateEvent::Healed { amount: 1.0 }]
++        );
++        assert_eq!(
++            (vitals.health, vitals.saturation, vitals.exhaustion),
++            (19.0, 4.0, 2.0)
++        );
++        tick(&mut vitals, 4.0, Environment::default());
++        assert_eq!(
++            (vitals.health, vitals.saturation, vitals.exhaustion),
++            (20.0, 2.0, 0.0)
++        );
++
++        vitals.health = 18.0;
++        vitals.hunger = 17.0;
++        assert!(tick(&mut vitals, 8.0, Environment::default()).is_empty());
++        vitals.hunger = 20.0;
++        let rules = GameRules {
++            natural_regeneration: false,
++            ..GameRules::default()
++        };
++        assert!(
++            vitals
++                .tick(
++                    8.0,
++                    Environment::default(),
++                    GameMode::Survival,
++                    &rules,
++                    &cfg
++                )
++                .is_empty()
++        );
++        assert_eq!(vitals.health, 18.0);
++    }
++
++    #[test]
++    fn death_fires_once_and_dead_stats_wait_for_respawn() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        let events = vitals.damage(100.0, DamageSource::Mob, GameMode::Survival, &cfg);
++        assert_eq!(
++            events,
++            vec![
++                StateEvent::Damaged {
++                    source: DamageSource::Mob,
++                    amount: 20.0
++                },
++                StateEvent::Died {
++                    source: DamageSource::Mob
++                }
++            ]
++        );
++        let dead = vitals.clone();
++        assert!(
++            vitals
++                .damage(1.0, DamageSource::Fire, GameMode::Survival, &cfg)
++                .is_empty()
++        );
++        assert!(tick(&mut vitals, 100.0, Environment::default()).is_empty());
++        vitals.exhaust(20.0, GameMode::Survival, &cfg);
++        assert_eq!(vitals, dead);
++        vitals.respawn(&cfg);
++        assert_eq!(
++            (
++                vitals.health,
++                vitals.hunger,
++                vitals.saturation,
++                vitals.air_seconds
++            ),
++            (20.0, 20.0, 5.0, 15.0)
++        );
++        assert!(!vitals.is_dead());
++        assert_eq!(
++            vitals
++                .damage(20.0, DamageSource::Fall, GameMode::Survival, &cfg)
++                .iter()
++                .filter(|event| matches!(event, StateEvent::Died { .. }))
++                .count(),
++            1
++        );
++    }
++
++    #[test]
++    fn drowning_starts_only_after_air_then_full_damage_interval() {
++        let mut vitals = Vitals::new(&SurvivalConfig::default());
++        let underwater = Environment {
++            underwater: true,
++            ..Environment::default()
++        };
++        assert!(tick(&mut vitals, 15.0, underwater).is_empty());
++        assert_eq!((vitals.air_seconds, vitals.health), (0.0, 20.0));
++        assert!(tick(&mut vitals, 0.5, underwater).is_empty());
++        assert_eq!(
++            tick(&mut vitals, 0.5, underwater),
++            vec![StateEvent::Damaged {
++                source: DamageSource::Drowning,
++                amount: 2.0
++            }]
++        );
++        assert_eq!(vitals.health, 18.0);
++
++        let mut one_frame = Vitals::new(&SurvivalConfig::default());
++        tick(&mut one_frame, 17.0, underwater);
++        assert_eq!((one_frame.health, one_frame.air_seconds), (16.0, 0.0));
++        tick(&mut one_frame, 0.1, Environment::default());
++        assert_eq!(one_frame.air_seconds, 15.0);
++    }
++
++    #[test]
++    fn starvation_stops_at_one_heart_and_fall_counts_complete_blocks() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        vitals.hunger = 0.0;
++        vitals.saturation = 0.0;
++        assert!(tick(&mut vitals, 3.9, Environment::default()).is_empty());
++        tick(&mut vitals, 0.1, Environment::default());
++        assert_eq!(vitals.health, 19.0);
++        tick(&mut vitals, 1000.0, Environment::default());
++        assert_eq!(vitals.health, 2.0);
++        assert!(!vitals.is_dead());
++        assert_eq!(fall_damage(3.0, &cfg), 0.0);
++        assert_eq!(fall_damage(3.9, &cfg), 0.0);
++        assert_eq!(fall_damage(4.0, &cfg), 1.0);
++        assert_eq!(fall_damage(7.8, &cfg), 4.0);
++        assert_eq!(fall_damage(f32::NAN, &cfg), 0.0);
++    }
++
++    #[test]
++    fn environment_damage_burns_after_exit_and_void_kills_once() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        let lava = Environment {
++            in_lava: true,
++            ..Environment::default()
++        };
++        assert!(tick(&mut vitals, 0.25, lava).is_empty());
++        assert_eq!(
++            tick(&mut vitals, 0.25, lava),
++            vec![StateEvent::Damaged {
++                source: DamageSource::Lava,
++                amount: 4.0
++            }]
++        );
++        assert_eq!(vitals.burning_seconds, 8.0);
++        let events = tick(&mut vitals, 1.0, Environment::default());
++        assert!(events.contains(&StateEvent::Damaged {
++            source: DamageSource::Fire,
++            amount: 1.0
++        }));
++        assert_eq!(vitals.burning_seconds, 7.0);
++        let void = Environment {
++            out_of_world: true,
++            ..Environment::default()
++        };
++        let events = tick(&mut vitals, 100.0, void);
++        assert_eq!(
++            events
++                .iter()
++                .filter(|event| matches!(event, StateEvent::Died { .. }))
++                .count(),
++            1
++        );
++    }
++
++    #[test]
++    fn invalid_time_damage_and_exhaustion_do_not_corrupt_state() {
++        let cfg = SurvivalConfig::default();
++        let mut vitals = Vitals::new(&cfg);
++        let before = vitals.clone();
++        for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -1.0, 0.0] {
++            assert!(tick(&mut vitals, invalid, Environment::default()).is_empty());
++            assert!(
++                vitals
++                    .damage(invalid, DamageSource::Fall, GameMode::Survival, &cfg)
++                    .is_empty()
++            );
++            vitals.exhaust(invalid, GameMode::Survival, &cfg);
++        }
++        assert_eq!(vitals, before);
++    }
++
++    #[test]
++    fn configuration_rejects_unknown_fields_non_finite_and_invalid_boundaries() {
++        let source = include_str!("../../../assets/data/survival.ron");
++        assert!(SurvivalConfig::from_ron(source).is_ok());
++        assert!(
++            SurvivalConfig::from_ron(&source.replace("max_health: 20.0", "max_health: NaN"))
++                .is_err()
++        );
++        assert!(
++            SurvivalConfig::from_ron(&source.replace("regen_interval: 4.0", "regen_interval: 0.0"))
++                .is_err()
++        );
++        assert!(
++            SurvivalConfig::from_ron(
++                &source.replace("initial_saturation: 5.0", "initial_saturation: 21.0")
++            )
++            .is_err()
++        );
++        assert!(SurvivalConfig::from_ron(&source.replacen('(', "(unknown: 1,", 1)).is_err());
++        assert!(SurvivalConfig::from_ron("()").is_err());
++    }
++
++    #[test]
++    fn long_frames_do_not_repeat_previous_damage_or_skip_damage_intervals() {
++        let cfg = SurvivalConfig::default();
++        let rules = GameRules {
++            natural_regeneration: false,
++            ..GameRules::default()
++        };
++        let environment = Environment {
++            underwater: true,
++            ..Environment::default()
++        };
++        let mut batched = Vitals::new(&cfg);
++        let events = batched.tick(18., environment, GameMode::Survival, &rules, &cfg);
++        assert_eq!(events.len(), 3);
++        assert_eq!(batched.health, 14.);
++        let mut small_steps = Vitals::new(&cfg);
++        for _ in 0..72 {
++            small_steps.tick(0.25, environment, GameMode::Survival, &rules, &cfg);
++        }
++        assert_eq!(batched, small_steps);
++    }
++}
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index 8eb80ec..0c97e55 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -1,34 +1,20 @@
+-# Путь к версиям 1.0–2.0
++# Voxel Sandbox: Foundation → Survival
+ 
+-Текущий статус: **0.1 — рабочий творческий фундамент, pre-1.0**. Проверенные возможности и оставшиеся ограничения перечислены в README и docs/VALIDATION.md.
++**1.0 Foundation принята пользователем** и заморожена тегом `v1.0.0` на исходном коммите `74d34332a587131d3b462c1a99fa21b5769ec13b`. Отдельная альфа 2.0 не заменяет выпущенный архив Foundation.
+ 
+-| Версия | Результат | Критерий готовности |
+-|---|---|---|
+-| 1.0 | Творческий мир, персонаж, строительство, инвентарь и сохранения | Можно создать мир, добыть блок, построить дом, перезапустить игру и продолжить |
+-| 1.1 | Руды и экипировка | Руды по высоте, уровни инструментов, таблицы дропа и броня проверяются тестами |
+-| 1.2 | Живой мир | Биомы, деревья, пещеры, структуры, вода и погода не ломают детерминизм |
+-| 1.3 | Выживание и мобы | Здоровье, голод, опыт, базовый бой, нейтральные и враждебные мобы |
+-| 1.4 | Мультиплеер | 2 игрока синхронно меняют один мир; нагрузочный сценарий на 10 игроков |
+-| 1.5 | Машины и кинетика | RPM, передача, стресс, прессы, бассейн, миксер, латунь, конвейеры |
+-| 1.6 | Ранние боссы | Боссы имеют фазы, лут и WorldTierUp без порчи чанков |
+-| 1.7 | Нижний мир | Измерения, Хелстил, Стена плоти, Адамант |
+-| 1.8 | Авиация | Гироплан, самолёт, вертолёт, дирижабль и их сохранение |
+-| 1.9 | Драконы | Огненные, ледяные, молниевые драконы; приручение, кузня, сталь |
+-| 2.0 | Полная прогрессия | Поздние боссы, звёздный металл, поезда, улучшения контента и стабильности |
+-
+-## Версия 1.0 — 6 независимых потоков (после согласования контрактов)
+-
+-1. Мир: блоки, секции, генерация, очереди чанков.
+-2. Рендер: meshing, видимость, обновление изменённых секций.
+-3. Игрок: FPS-камера, движение, коллизии, raycast.
+-4. Предметы: творческий каталог блоков и хотбар; инструменты и рецепты — после 1.0.
+-5. Сохранения: версии формата, безопасная запись и загрузка.
+-6. UI и QA: меню, настройки, автоматические тесты, CI.
+-
+-## Вне 1.0
++Текущее направление — **2.0 Survival**, восемь этапов из [нового ТЗ](superpowers/specs/2026-11-09-v2-survival.md). Эта карта заменяет прежнюю нумерацию 1.1–2.0 с машинами, боссами и драконами: они не входят в текущую Survival-работу. Мобы отложены до 3.0, мультиплеер — до 11.0.
+ 
+-Боссы, летающая техника, драконы, механические сети, поезда, сложная магия и полноценная сеть. Их контракты учитываются архитектурно, но они не реализуются сейчас.
+-
+-## Правило релиза
+-
+-Функциональность считается готовой только после фактического запуска, прохождения тестов и проверки старых сохранений. Работа над новой версией не оправдывает поломку существующих возможностей.
++| Этап 2.0 | Результат | Текущее состояние |
++|---|---|---|
++| 1 | Анализ Foundation, архитектура и пять примеров RON | Подготовлены [план](SURVIVAL_V2_PLAN.md) и `assets/data/examples/` |
++| 2 | Survival/Creative, здоровье, голод, воздух, смерть/возрождение, HUD и консоль | Реализованы; результаты проверки — в [отчёте](STAGE_2_SURVIVAL.md) |
++| 3 | Предметы, конечные стеки, дроп, инвентарь и общий контракт контейнеров | Следующий этап; ждёт «дальше» |
++| 4 | Восемь руд, генерация жил, добыча по времени и трещины | Запланирован |
++| 5 | Инструменты, броня, прочность | Запланирован |
++| 6 | Крафт, станции и книга рецептов | Запланирован |
++| 7 | Опыт и зачарования | Запланирован |
++| 8 | Полные сохранения, строковые палитры, миграция 1 → 2 и выпуск | Запланирован |
++
++После каждого этапа выполняются сборка, тесты и фактический запуск. Следующий этап начинается после сообщения пользователя «дальше». Пока все восемь этапов и путь от дерева до алмазных инструментов не проверены, результат обозначается как альфа с номером этапа.
++
++Полные критерии, ограничения атласа, точки расширения и протокол совместимости описаны в [плане Survival](SURVIVAL_V2_PLAN.md). Существующие версии Bevy и зависимостей сохраняются; новые прямые зависимости явно перечисляются в отчёте этапа.
+diff --git a/docs/STAGE_2_SURVIVAL.md b/docs/STAGE_2_SURVIVAL.md
+new file mode 100644
+index 0000000..7a0513a
+--- /dev/null
++++ b/docs/STAGE_2_SURVIVAL.md
+@@ -0,0 +1,66 @@
++# 2.0 Survival — альфа, этапы 1–2
++
++Дата: 9 ноября 2026 года. Foundation 1.0 принята пользователем, сохранена на коммите `74d34332a587131d3b462c1a99fa21b5769ec13b` и отмечена тегом `v1.0.0`. Эту альфу следует проверять отдельно от стабильного архива Foundation.
++
++## Реализовано
++
++Этап 1: проанализированы реестр блоков, мир, инвентарь, сохранения и состояния существующего проекта. [План](SURVIVAL_V2_PLAN.md) задаёт восемь этапов, строковые ID, будущие палитры сохранений и ограничения оригинального атласа. Пять коротких файлов `assets/data/examples/{blocks,items,ores,recipes,tools}.ron` показывают предложенную схему; это ещё не рабочий каталог контента.
++
++Этап 2 добавляет выбор Survival/Creative при создании мира и переключение командой. В Survival работают здоровье 20, голод 20, насыщение и истощение, регенерация, урон от падения, утопление после 15 секунд воздуха, голод с нижним пределом 2 HP, урон за выход по Y, экран смерти и возрождение у спавна. HUD показывает 10 сердец, голод и условную полоску воздуха; постоянные старые панели с названием и управлением не возвращены. Creative отключает урон и расход голода и разрешает полёт.
++
++Минимальная консоль открывается `/`, принимает Enter, закрывается Esc и поддерживает:
++
++```text
++/gamemode survival
++/gamemode creative
++/gamemode 0
++/gamemode 1
++/gamerule keepInventory true
++/gamerule keepInventory false
++/gamerule naturalRegeneration true
++/gamerule naturalRegeneration false
++```
++
++Некорректная команда остаётся в консоли с объяснением. Режимы, правила и возрождение идут через `PlayerActionMessage`; независимая логика ядра выдаёт события изменения состояния. Лава, огонь и будущие мобы представлены источниками урона в ядре; в текущем мире таких блоков/мобов нет.
++
++## Настройки без пересборки
++
++Действующий баланс находится в `assets/data/survival.ron`. Клиент проверяет файл примерно раз в секунду. Поиск: `VOXEL_SURVIVAL_CONFIG`, затем `assets/data/survival.ron` рядом с EXE, затем относительно рабочей директории. Без внешнего файла используется встроенная конфигурация. Некорректный RON или диапазон даёт warning и сохраняет последнюю корректную конфигурацию. Пять файлов примеров пока не загружаются в игру.
++
++Новая прямая зависимость: **`game_core → ron = "=0.12.3"`**. Эта версия уже присутствовала в графическом crate и lockfile. Rust, Bevy и существующие версии crates не обновлялись; `bincode`, `zstd` и загрузчик полного каталога ещё не добавлены.
++
++## Границы этой альфы
++
++- Количественного инвентаря, предметов и физического дропа пока нет. Мгновенное разрушение, творческий каталог и бесконечная установка из Foundation сохраняются во всех режимах до этапов 3–4. `keepInventory` хранит правило и сопровождает событие смерти; он пока не управляет выпадением предметов.
++- Руды, инструменты, броня, крафт, станции, опыт и зачарования реализуются на следующих этапах. Нет пищевой системы восстановления голода и полноценной симуляции воды/плавания.
++- Сохранения остаются JSON **schema 1 / generator 1** и хранят постройки, seed, положение/обзор и время. Статы, режим и gamerules пока не переживают перезапуск: мир открывается в Survival со свежими статами. Полное хранение и миграция 1 → 2 — этап 8.
++- По умолчанию альфа использует **`saves-v2/`**. Старый `saves/` не открывается автоматически; для проверки скопируйте JSON и `.json.bak` в новый каталог. `VOXEL_SAVE_DIR` позволяет выбрать отдельное место. Рекомендуется проверять на копии мира.
++- Исходные 17 PNG и слои 0…16 не заменены; слой 17 остаётся резервным. Изменений генератора Foundation нет.
++
++## Проверка
++
++`cargo fmt --all -- --check`, `cargo check --workspace --locked` и Clippy с `-D warnings` пройдены. Полный `cargo test --workspace --locked`: **112 тестов**, 0 ошибок (51 ядро, 30 рендер, 1 сквозное сохранение, 30 клиент). Linux debug и Windows GNU x64 release собраны. Windows-тесты выполнены через Wine: **80 тестов**, 0 ошибок (50 ядро, 30 клиент; один файловый тест ядра доступен только на Unix).
++
++Фактический запуск Linux/Xvfb/Vulkan: выбор режима, новый мир с полными 20/20 здоровья без стартового падения, HUD, консоль, обе gamerules, Creative/полёт, возврат в Survival, смертельное падение и возрождение. Проверены обновление корректного RON и предупреждение при некорректном файле без остановки игры. Таймеры используют реальное время, включая длинные кадры; отдельный тест сравнивает утопление одним шагом 18 секунд и 72 шагами по 0.25 секунды. Тест безопасного спавна проверяет застроенную колонну, снятый пол и верхнюю границу мира.
++
++Windows EXE запущен через Wine/Vulkan из каталога без ресурсов: меню, исходные текстуры и значок встроены. Загружен проверенный JSON формата Foundation с контрольной суммой, водой над головой и правками блоков; наблюдались запас воздуха, урон после его исчерпания и экран смерти от утопления, затем возрождение с полными статами и переключение в Creative через консоль. **Настоящая Windows-машина, звук через физическое устройство и целевая производительность GPU пока не проверены.** Снимки экранов и полный diff поставляются рядом с отдельным превью; стабильный архив 1.0 не заменён.
++
++```bash
++cargo fmt --all -- --check
++cargo check --workspace --locked
++cargo clippy --workspace --all-targets --locked -- -D warnings
++cargo test --workspace --locked
++cargo build --locked -p voxel-client
++```
++
++Ручной сценарий: создать Survival; проверить отсутствие полёта, HUD и урон от падения; открыть `/`, изменить gamerules, перейти в Creative, проверить полёт и отсутствие урона; вернуться в Survival, получить смертельное падение, возродиться у спавна; проверить воздух и утопление; изменить корректный RON, затем дать ошибочный и убедиться, что игра продолжает работать. Загрузить копию мира Foundation и проверить постройки. Проверять полноэкранный режим, F3/F3+G, выбор слота, звуки и сохранение мира после новых действий.
++
++## Основные файлы
++
++- `crates/game_core/src/survival.rs` — правила, конфигурация, статы и тесты без Bevy.
++- `apps/client/src/survival_client.rs` — сообщения действий, применение правил, окружение, безопасное возрождение и hot-reload.
++- `apps/client/src/console.rs` — ввод, разбор команд и тесты.
++- `apps/client/src/{session,main,player,ui,settings}.rs` — интеграция состояний, ввода, HUD и отдельного каталога сохранений.
++- `assets/data/survival.ron` — активные параметры; `assets/data/examples/` — схемы следующего контента.
++
++Следующий разрешаемый этап — **3: предметы, дроп и конечный инвентарь**. Он начинается после следующего «дальше» пользователя.
+diff --git a/docs/SURVIVAL_V2_PLAN.md b/docs/SURVIVAL_V2_PLAN.md
+new file mode 100644
+index 0000000..cde155c
+--- /dev/null
++++ b/docs/SURVIVAL_V2_PLAN.md
+@@ -0,0 +1,178 @@
++# Voxel Sandbox 2.0 Survival — Implementation Plan
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Этапы ниже используют чек-листы для контроля готовности.
++
++**Goal:** Добавить поверх принятой 1.0 Foundation выживание с путём от дерева до алмазных инструментов.
++
++**Architecture:** Детерминированная игровая логика остаётся в независимом от Bevy `game_core`. Ввод и UI отправляют `PlayerAction`, логика проверяет действие и выдаёт события изменения состояния; клиент обновляет мир, HUD, звук и графику по результату. Реестры связывают строковые ID контента с числовыми ID рантайма, а сохранения используют строковые палитры.
++
++**Tech Stack:** Существующие Rust 1.99.1, edition 2024, Bevy 0.20.1 и serde без обновления версий. `ron = "=0.12.3"` уже использовался `game_render`; на этапе 2 он добавлен как прямая зависимость `game_core`. Существующие версии зависимостей не обновлены. `bincode` и `zstd` планируются к этапу 8, их версии определяются после проверки совместимости; сейчас они не добавлены.
++
++**Spec:** [Полное новое ТЗ пользователя](superpowers/specs/2026-11-09-v2-survival.md).
++
++## Общие ограничения
++
++- Исходная 1.0 Foundation принята пользователем: тег `v1.0.0`, исходный коммит `74d34332a587131d3b462c1a99fa21b5769ec13b`. Старые номера пакетов Cargo не меняют этот факт.
++- Новое ТЗ определяет **2.0 Survival**; прежняя строка «2.0 — полная прогрессия» в старой дорожной карте больше не задаёт объём этого релиза. Мобы относятся к 3.0, мультиплеер — к 11.0; боссы, машины, авиация и драконы в эту работу не входят.
++- Проект расширяется на месте. Bevy и существующие зависимости не обновляются без разрешения пользователя; новые зависимости явно перечисляются в отчёте.
++- Высота мира −64…320 включительно, море 63, чанки 16×16, секции 16×16×16. Одна ECS-сущность на обычный блок не создаётся.
++- После каждого этапа обязательны сборка, запуск и проверка сохранности старых возможностей. Переход к следующему этапу — после «дальше»; этап 2 уже разрешён этим сообщением пользователя.
++- Нет `unsafe`; новые комментарии на русском. Все параметры баланса в RON, ошибки контента в лог без паники.
++- Примеры в `assets/data/examples/` — **предложенная схема**, не рабочий каталог и не заявление о реализованных системах. На этапе 2 загружается и обновляется только действующий `assets/data/survival.ron`.
++- До завершения всех восьми этапов результат обозначается как альфа 2.0 с указанием завершённого этапа, а не готовая версия 2.0.
++
++## Точки проверки при ревью
++
++1. Повреждённый старый JSON или будущая версия формата не затираются миграцией; проверка контрольной суммы предшествует преобразованию старой схемы.
++2. Смена режима, загрузка мира и смерть не оставляют активный полёт, зажатую добычу или повторно применённую команду.
++3. Сбой hot-reload оставляет последнюю корректную конфигурацию; изменение баланса руд не меняет генерацию уже созданного мира.
++4. Перенос переполненного стека, повторный подбор дропа и закрытие контейнера не дублируют и не теряют предметы.
++5. Новые материалы не изменяют 17 исходных PNG, номера слоёв 0…16 и пустой слой 17; старый пользовательский атлас продолжает работать.
++
++## Что действительно есть в принятой 1.0
++
++| Система | Файл и текущий контракт | Что расширять |
++|---|---|---|
++| Реестр блоков | `crates/game_core/src/blocks.rs`: `BlockDef`, `BLOCKS`, 16 стабильных `u8` ID 0…15; hardness уже есть | Строковые ID, свойства добычи, таблицы дропа; исходные ID при миграции сохраняют значение |
++| Мир | `crates/game_core/src/world.rs`: `Chunk::generate`, `World`, секции, `Arc`/copy-on-write, правки, `GENERATOR_VERSION = 1` | Версия и снимок параметров генератора, руды, блок-сущности |
++| Состояния | `apps/client/src/session.rs`: ресурс `Game`; `Mode` обозначает экраны Menu/Create/Load/Settings/Playing/Paused/Inventory | Отдельный `GameMode` Survival/Creative, статы, спавн, консоль, смерть; не смешивать режим игры с экраном |
++| Инвентарь | `Game.hotbar: [u8; 9]`, `selected`; `apps/client/src/ui.rs` рисует творческий каталог ID 1…15 без bedrock | Предметы и стеки: 9+27 слотов, 4 брони, вторая рука, общий код слотов для контейнеров |
++| Добыча | `apps/client/src/player.rs`: DDA и непосредственный `world.set` по щелчку; бесконечная установка | События действий, таймер добычи, проверки инструмента, трещины, дроп |
++| Сохранения | `crates/game_core/src/persistence.rs`: проверенный JSON, `SaveData` schema 1, контрольная сумма, `.json.bak`, временный файл и безопасная замена | Миграция, состояния персонажа и контейнеров, строковые палитры, bincode/zstd |
++| Состав сохранения | Seed, `generator_version = 1`, имя, позиция/обзор, время, список правок с сырыми `u8` | Полные сгенерированные чанки сейчас не сохраняются; менять генератор 1 нельзя |
++| Клиент сохранений | `session.rs::save_data`, `main.rs` создание/открытие мира содержат версии 1 | Централизовать версии и маршрутизацию загрузки, убрать жёстко заданные версии при миграции |
++| Рендер | `game_render/src/{atlas,face_textures,materials,icons}.rs`, `assets/blocks.ron` | Сейчас 18 слоёв и точное соответствие длине `BLOCKS`; новые ID требуют расширения mapping |
++| Ресурсы | `apps/client/src/graphics_assets.rs`, 17 исходных PNG 128×128; texture array и иконки кубов уже есть | Дополнительные слои, оверлеи, отдельный атлас предметов; исходные PNG не перерисовывать |
++
++Систем предметов, количественного инвентаря, руд, инструментов, брони, станций, опыта и зачарований в исходной 1.0 нет. Генерация, физика, хранение и сохранения уже тестируются без окна. На старте новых crates не требуется: сначала добавляются содержательные модули в `game_core` и существующий клиент.
++
++## Контракты данных и идентификаторов
++
++`ContentId` — строка вида `namespace:lower_snake_case`. `NumericRegistry` хранит соответствия `ContentId ↔ RuntimeBlockId` и `ContentId ↔ RuntimeItemId`; типы ID блоков и предметов различаются. Число рантайма не является долговременным идентификатором. Неизвестный ID, повтор ID, недопустимый диапазон, отсутствующая ссылка или неверный слой дают ошибку с именем файла и ID записи; новый снимок применяется только после полной проверки.
++
++Начальное сопоставление блоков 1.0:
++
++| Старый ID | Строковый ID | Старый ID | Строковый ID |
++|---|---|---|---|
++| 0 | `foundation:air` | 8 | `foundation:oak_leaves` |
++| 1 | `foundation:grass` | 9 | `foundation:oak_planks` |
++| 2 | `foundation:dirt` | 10 | `foundation:cobblestone` |
++| 3 | `foundation:stone` | 11 | `foundation:glass` |
++| 4 | `foundation:deepslate` | 12 | `foundation:water` |
++| 5 | `foundation:sand` | 13 | `foundation:bedrock` |
++| 6 | `foundation:gravel` | 14 | `foundation:snow` |
++| 7 | `foundation:oak_log` | 15 | `foundation:sandstone` |
++
++Примеры: [блок](../assets/data/examples/blocks.ron), [предметы](../assets/data/examples/items.ron), [руда](../assets/data/examples/ores.ron), [рецепт](../assets/data/examples/recipes.ron), [инструмент](../assets/data/examples/tools.ron). Блоки из таблицы — базовый каталог Foundation, с которым объединяются примеры. `blocks.ron` показывает переопределение одного камня; остальные 15 записей не нужно дублировать ради примера. Запись руды объявляет свой `id` как новый тип рудного блока, а `replaces` ссылается на базовые блоки. `block` у предмета ссылается на базовый либо объявленный рудой блок; все предметные ссылки примеров перечислены в `items.ron`. `tools.ron` задаёт характеристики предмета по совпадающему ID. Новые базовые и глубинные варианты руды сохраняют отдельно свой тип основы; внешний вид выбирает слой 3 или 4 плюс оверлей, а не меняет ID по порядку загрузки.
++
++На этапе 3 загрузчик объединяет каталоги, проверяет блоки/предметы/инструменты/рецепты и затем создаёт `NumericRegistry`. Загрузчики Bevy адаптируют независимые от движка структуры serde; hot-reload повторяет ту же атомарную проверку. Будущий тест `example_catalog_references_resolve` загружает базовые 16 блоков и пять примеров, проверяет все ссылки, wood pickaxe 59/2/0, камень → булыжник и бревно → 4 доски. Он не должен зависеть от случайного порядка чтения файлов.
++
++В будущем `armor.ron` задаёт 4 части и прочность, `enchantments.ron` — эффекты и несовместимости, `experience.ron` — формулы уровней. Примеры этих файлов сейчас не заявлены реализованными.
++
++## Этапы реализации
++
++### Этап 1 — Анализ и схема данных
++
++- [x] Зафиксировать точки расширения 1.0, новый объём 2.0 и восемь этапов в этом документе; сохранить полное ТЗ без сокращений.
++- [x] Подготовить пять коротких RON-примеров и правила разрешения ссылок, миграции и расширения атласа.
++- [x] Этап 1 ограничен документацией и примерами; исходные данные 1.0 не заменены. После добавления этапа 2 выполнены общие тесты и сборки; окончательные результаты записываются в [отчёте этапа 2](STAGE_2_SURVIVAL.md).
++
++### Этап 2 — Режимы, персонаж, HUD и консоль
++
++Пути: `crates/game_core/src/survival.rs` и тесты ядра; `apps/client/src/{session,player,main,ui}.rs`, отдельный модуль адаптера действий/консоли; `assets/data/survival.ron` и его загрузчик. UI посылает `PlayerAction`; не рассчитывает урон, голод и смерть самостоятельно.
++
++- [x] Проверить тестами режимы; истощение 4.0; голод 0 с пределом здоровья 2; регенерацию +1 за 4 секунды при голоде ≥18; падение свыше 3; воздух 15 секунд и затем 2 урона/с; смерть и сброс в точку спавна. Включить проверку повторного события смерти, переключения в Creative и неверного RON.
++- [x] Реализовать выбор Survival/Creative при создании мира, отсутствие урона/голода и полёт только в Creative, жизненные циклы персонажа, экран смерти, воздух и HUD, консоль `/`, `/gamemode survival|creative`, `/gamerule keepInventory true|false`. Вынести источники истощения в RON: бег 0.1/м, прыжок 0.05, прыжок на бегу 0.2, урон 0.1, добыча 0.005, атака 0.1. Лава/огонь получают логический источник урона; соответствующие блоки появятся при расширении контента.
++- [x] Собрать, запустить, проверить оба режима, `/` при захваченной мыши, `/gamerule`, падение, утопление, смерть/респавн и hot-reload. Дроп инвентаря при смерти подключается на этапе 3; полное сохранение статов — этап 8. Промежуточная альфа должна прямо сообщать об этих ограничениях, сохраняя старые постройки.
++
++### Этап 3 — Предметы, дроп, инвентарь и контейнеры
++
++Пути: новые `crates/game_core/src/{content,items,inventory,drops}.rs`, клиентский адаптер событий дропа и UI инвентаря; `assets/data/items.ron`. Общая логика слотов используется и персонажем, и блок-сущностями контейнеров.
++
++- [ ] Проверить `example_catalog_references_resolve`, переполнение/объединение стеков, Shift-перенос, деление правой кнопкой, Q/Ctrl+Q, запрет неподходящего предмета в броне и отсутствие дубля при повторном подборе. Проверить закрытие контейнера с предметом на курсоре.
++- [ ] Реализовать стеки 64/16/1, 9+27+4+1 слотов, drag-and-drop и команды контейнеров; дроп с задержкой подбора 0.5 с, радиусом 1.5, сроком 300 с, объединением и пределом 512 с удалением самого старого. Подключить выпадение при смерти и keepInventory; Survival начинает с пустым инвентарём, Creative сохраняет каталог бесконечных блоков.
++- [ ] Запустить графический сценарий добычи/подбора, полного инвентаря и смерти; проверить кубик блока, спрайт предмета и тёмно-фиолетовый UI с золотой рамкой. Числовые ID рантайма не записывать как постоянные ID.
++
++### Этап 4 — Руды, добыча и оверлеи
++
++Пути: `game_core/src/{world,blocks,content,mining}.rs`, `apps/client/src/{player,streaming,graphics_assets}.rs`, `game_render/src/{atlas,face_textures,materials,icons}.rs`, шейдер оверлеев; `assets/data/{blocks,ores}.ron` и новые ресурсы.
++
++- [ ] Проверить все восемь руд из таблицы ниже: высоты, допустимые основы, размер жилы, одинаковый результат при разном порядке чанков и на отрицательных границах. Проверить расчёт времени добычи, неверный тип/tier и отсутствие дропа; изменение цели/пауза сбрасывают трещины и прогресс.
++- [ ] Добавить версию генератора 2 со снимком конфигурации руд. Чанк оценивает пересекающие его жилы соседних источников; руда заменяет только stone/deepslate, слой основы по умолчанию меняется ниже Y=0. Генератор 1 остаётся неизменным для старых миров; новые миры после этого этапа используют генератор 2.
++- [ ] Реализовать добычу: подходящий инструмент — `hardness * 1.5 / speed`; требуется инструмент, но он не подходит — `hardness * 5` без дропа; инструмент не требуется — как рукой со speed=1 и с дропом. Hardness 0 — мгновенно, bedrock неразрушим, water в Survival не добывается. Подключить трещины, дроп и оверлеи с новых слоёв 18+; проверить в окне и старую карту, и новый мир с рудами.
++
++| Руда | Y | Жил/чанк | До блоков | Min tier | Дроп |
++|---|---|---:|---:|---:|---|
++| Уголь | 0…192 | 20 | 17 | 0 | Уголь |
++| Медь | −16…112 | 16 | 10 | 1 | Сырая медь |
++| Железо | −64…72 | 12 | 9 | 1 | Сырое железо |
++| Серебро | −32…40 | 6 | 8 | 2 | Сырое серебро |
++| Золото | −64…32 | 4 | 9 | 3 | Сырое золото |
++| Лазурит | −64…64 | 2 | 7 | 2 | 4–9 лазурита |
++| Красная пыль | −64…16 | 8 | 8 | 3 | 4–5 пыли |
++| Алмаз | −64…16 | 7 | 8 | 3 | Алмаз |
++
++Распределение высоты треугольное вокруг середины диапазона. Цинк и старые босcовые руды из исходной большой идеи не подменяют этот список. Правило неверного tier трактуется по разделу добычи: блок разрушается медленно, ресурс не выпадает; tier обязателен для получения рудного дропа.
++
++### Этап 5 — Инструменты, броня и прочность
++
++Пути: новые `game_core/src/{equipment,combat}.rs`, расширение `mining.rs`/`items.rs`, UI прочности и слотов; `assets/data/{tools,armor}.ron`.
++
++- [ ] Проверить материалы дерево 59/2/4/tier0, камень 131/4/5/tier1, медь 190/5/5/tier1, железо 250/6/6/tier3, серебро 220/7/6/tier3, золото 32/12/4/tier2, алмаз 1561/8/7/tier4; обсидиан требует tier4. Проверить поломку при 0, hardness0 без износа и меч с расходом 2 за блок.
++- [ ] Реализовать кирку/топор/лопату/мотыгу/меч, грядки; броню кожа/медь/железо/серебро/золото/алмаз с защитой комплектов 7/8/12/11/10/16 и прочностью 80/150/250/220/100/520. Распределение защиты — из ТЗ; множители прочности шлема/нагрудника/поножей/ботинок 0.7/1.0/0.95/0.8 задаются данными. Урон `damage * (1 - min(20, armor) / 25)`; износ всех надетых частей минимум 1 за получение урона. Серебро получает заготовку бонуса против нежити.
++- [ ] Проверить формулу и распределение тестами, затем в окне зелёную/жёлтую/красную полоску прочности, исчезновение сломанного предмета и смену брони. Зачарования пока не нужны для обычных инструментов.
++
++### Этап 6 — Станции, крафт и книга рецептов
++
++Пути: новые `game_core/src/{crafting,stations}.rs`, UI контейнеров/станций, новые тайлы и `assets/data/recipes.ron`.
++
++- [ ] Проверить shaped/shapeless/smelting по RON, точное списание/выдачу, отсутствующие ссылки, заблокированный выход печи и отсутствие потери топлива при паузе/закрытии UI. Бревно → 4 доски — первый сквозной рецепт.
++- [ ] Реализовать 2×2 и 3×3, печь с входом/топливом/выходом и временем, наковальню для двух одинаковых предметов/имени/XP и сундук. Топливо: уголь 8 предметов, дерево 1.5, палки 0.5. Добавить все перечисленные в ТЗ рецепты, включая кожаную броню, самородки↔слитки, факел, стол и полки; пища остаётся заготовкой. Книга показывает доступные рецепты и расстановку.
++- [ ] Пройти в игре дерево → верстак → печь → плавка → железный инструмент, затем алмазный; проверить каждый UI и общий контракт слотов. Хранение состояния станций при перезапуске закрепляется на этапе 8.
++
++### Этап 7 — Опыт и зачарования
++
++Пути: новые `game_core/src/{experience,enchanting}.rs`, XP-дроп/HUD/UI стола; `assets/data/{experience,enchantments}.ron`.
++
++- [ ] Проверить стоимость уровня: `2*L+7` до 15 включительно, `5*L-38` для 16…30, `9*L-158` от 31; все границы. Проверить списание i уровней и i лазурита для i=1…3, запрет Удача+Шёлковое касание и атомарность отказа при нехватке ресурсов.
++- [ ] Реализовать XP от руд и печи, заготовку от мобов, шарики и HUD; стол с тремя вариантами и влиянием полок. Подключить Эффективность, Удачу, Шёлковое касание, Прочность, Починку, Защиту (+1/уровень/часть), Остроту; список `(id, level)` хранится в экземпляре предмета. Оплата лазуритом отключается через RON.
++- [ ] Проверить добычу с зачарованиями и оплату стола в окне; повторное действие не списывает опыт дважды. Сохранение зачарований проверяется этапом 8.
++
++### Этап 8 — Полные сохранения, миграция и выпуск
++
++Пути: `game_core/src/persistence.rs` и новые модули кодека/миграции, `apps/client/src/{session,main}.rs`, `crates/game_core/tests/fixtures/`, тесты round-trip. Новые зависимости: совместимые закреплённые `bincode` и `zstd`, перечисленные в отчёте этого этапа.
++
++- [ ] Добавить готовый неизменённый JSON-образец 1.0, тест миграции с постройкой на отрицательной границе чанков, тест повреждения checksum, отказа будущей версии, резервной копии и повторного запуска. Проверить круглое сохранение всех слотов, блок-сущностей, статов, спавна, режима, XP, прочности и зачарований.
++- [ ] Реализовать описанный ниже протокол миграции и формат 2: заголовок версии, serde+bincode, сжатые zstd чанки и строковые палитры. Загруженные данные полностью восстанавливают состояние; неизвестный ID даёт диагностируемую ошибку, не превращается незаметно в воздух.
++- [ ] Прогнать общие проверки, старую и новую карту в Linux и Windows-сборке; пройти Survival от пустого инвентаря до алмазных инструментов, сохранить/перезапустить. Только после проверки всего ТЗ считать 2.0 Survival завершённой.
++
++## Протокол совместимости, согласованный до реализации
++
++1. Определить формат по заголовку, прочитать исходные байты без записи. Для v1 сначала проверить checksum исходного JSON-envelope, затем разобрать **legacy-схему 1**; новая схема не должна добавлять default-поля до проверки checksum.
++2. Преобразовать старые `u8` только через неизменную таблицу Foundation выше. Сохранить seed, имя, все правки, позицию, обзор, время; оставить `generator_version = 1`. Не создавать руды в старом мире скрытой перегенерацией.
++3. Старому миру назначить **Survival**, свежие здоровье 20, голод 20, начальное насыщение/воздух из действующего RON, истощение 0, XP 0 и пустой количественный инвентарь. Отсутствовавшие в 1.0 статы и вещи нельзя «восстановить» из творческого хотбара. Точку спавна вывести детерминированно из seed; это новый атрибут старого мира, а не замена сохранённой позиции.
++4. До первой записи формата 2 создать отдельную резервную копию исходных проверенных байтов, например `<id>.bak_v1`; существующую копию не перезаписывать. Если загрузилась проверенная `.json.bak`, копировать именно её содержимое. Сохранение формата 2 — временный файл → sync → проверка → атомарная замена там, где поддерживается. При ошибке исходник и копия остаются читаемыми.
++5. Формат 2 содержит палитры строковых ID для блоков и предметов, версию/снимок генерации, все данные персонажа и блок-сущностей. Числа внутри сжатого чанка ссылаются на его сохранённую палитру; после загрузки преобразуются в текущий `NumericRegistry`.
++6. Новые миры с рудами используют генератор 2 и сохранённый снимок параметров руд/их версию. Hot-reload меняет шаблон будущих миров, не этот снимок. Старые миры по генератору 1 продолжают генерироваться точно как 1.0; расширение старого мира рудами потребует отдельного явно реализованного пути.
++
++До этапа 8 не подменять старый JSON несовместимой записью и не обещать полного восстановления новых систем после перезапуска. Временное хранение, если требуется для проверки этапов, должно быть явно отделено от исходного v1 и протестировано на отсутствие потери мира.
++
++## Правила расширения графики
++
++Существующий texture array уже устраняет просачивание соседних тайлов. Слои 0…16 и исходные 17 PNG сохраняются побайтно; слой 17 остаётся пустым. Новый контент начинается с 18, логическая раскладка атласа остаётся 6 колонок с ростом вниз. Старый override-атлас 768×384 дополняется новыми ресурсами без требования перерисовать старые тайлы.
++
++Руды используют отдельный оверлей поверх stone/deepslate, а не 16 полных копий фона. Разрешённые новым ТЗ временные цветные оверлеи имеют пометку `TODO(art)` и используются только для нового контента. Для лавы, огня, глины, обсидиана, верстака, печи, наковальни, сундука, стола, полок и грядки — новые тайлы с той же пометкой; исходные материалы не заменяются заглушками. Предметы получают отдельный атлас 128×128; блоки — изометрическую иконку с более светлой левой и тёмной правой гранью, переиспользуя существующий генератор иконок.
++
++## Команды и критерий проверки каждого этапа
++
++```bash
++source /workspace/.voxel-env/activate.sh
++cd /workspace/voxel-sandbox-rust
++cargo fmt --all -- --check
++cargo check --workspace --locked
++cargo clippy --workspace --all-targets --locked -- -D warnings
++cargo test --workspace --locked
++cargo run --locked -p voxel-client
++```
++
++На обычном компьютере без подготовленной облачной среды строка `source` не нужна. Помимо проверок ядра обязателен фактический запуск с ручным сценарием соответствующего этапа. Отчёт содержит изменённые файлы, новые зависимости, команды, результат проверки, ограничения и следующий этап. Новые короткие файлы примеров можно привести целиком; технический журнал не заменяет проверку игрового сценария.
+diff --git a/docs/releases/1.0-foundation.json b/docs/releases/1.0-foundation.json
+new file mode 100644
+index 0000000..0a245ba
+--- /dev/null
++++ b/docs/releases/1.0-foundation.json
+@@ -0,0 +1,12 @@
++{
++  "name": "Voxel Sandbox 1.0 Foundation",
++  "git_tag": "v1.0.0",
++  "source_commit": "74d34332a587131d3b462c1a99fa21b5769ec13b",
++  "windows_download_commit": "9a34e8fdf7dbbca1d9d1ae55a12fe1234355cbba",
++  "windows_exe_sha256": "fdc0ec271060ebc5ff015df232a38884a46bb741da91432068bba23570dae4ff",
++  "windows_zip_sha256": "08dc91506e468513aa08261126356729660f1255e33835fc9adff91487bc6986",
++  "native_tests": 92,
++  "windows_wine_tests": 51,
++  "native_windows_hardware_verified": false,
++  "note": "User accepted the previously delivered build as 1.0 Foundation; original binary/source are preserved without rebuilding or changing their internal early Cargo package versions."
++}
+diff --git a/docs/superpowers/specs/2026-11-09-v2-survival.md b/docs/superpowers/specs/2026-11-09-v2-survival.md
+new file mode 100644
+index 0000000..a77a338
+--- /dev/null
++++ b/docs/superpowers/specs/2026-11-09-v2-survival.md
+@@ -0,0 +1,141 @@
++Ты — старший Rust-разработчик (Bevy, ECS). Работаем над воксельной игрой-песочницей Voxel Sandbox. Версия 1.0 (Foundation) уже готова: мир по seed, чанки 16x16 с секциями по 16 блоков, высота -64…320, 5 биомов, набор базовых блоков, камера от первого лица, разрушение и установка блоков, творческий инвентарь и хотбар, меню, настройки, сохранение миров, смена дня и ночи, greedy meshing.
++
++Твоя задача — реализовать версию 2.0 «Survival» поверх существующего кода. НЕ переписывай проект заново. Сначала прочитай код, найди, где реестр блоков, инвентарь, сохранение и состояния игры, и встрой новое в них.
++
++## ИСХОДНЫЕ ДАННЫЕ (важно)
++- Код 1.0 я передаю вместе с этим промптом (архив или дерево файлов + Cargo.toml). Если кода в контексте нет, на этапе 1 первым делом попроси: Cargo.toml, дерево src/, файлы реестра блоков, инвентаря, сохранения и состояний игры. Не выдумывай их содержимое.
++- Используй ту версию Bevy и те крейты, что указаны в Cargo.toml. Не обновляй версии без моего разрешения. Новые зависимости (ron, bevy_common_assets, zstd, bincode и т.п.) добавляй явно и перечисляй в ответе.
++- Если в 1.0 нет системы команд/чата, сделай минимальную консоль (открывается клавишей /) для /gamemode и /gamerule.
++
++## ЦЕЛЬ ВЕРСИИ 2.0
++Игрок начинает без ресурсов, добывает материалы, делает инструменты и постепенно развивается. Результат: можно пройти путь от дерева до алмазных инструментов в режиме выживания.
++
++## ОБЩИЕ ТРЕБОВАНИЯ
++- Все данные (блоки, предметы, рецепты, руды, инструменты, броня, зачарования) лежат в файлах RON в assets/data/, с hot-reload. Баланс меняется без перекомпиляции. При загрузке проверяй ссылки (рецепт ссылается на несуществующий предмет и т.п.) и пиши понятную ошибку в лог, а не паникуй.
++- Идентификаторы в данных строковые (например "survival:iron_ore"). В рантайме они превращаются в числовые ID через реестр. В сохранениях блоки и предметы хранятся через палитру строковых ID, а не сырыми числами, чтобы добавление новых блоков не ломало старые миры.
++- Игровая логика (урон, добыча, крафт, инвентарь) отделена от рендера и ввода, чтобы потом её можно было сделать серверной (мультиплеер в версии 11.0). Действия игрока идут через события (Event): ввод → PlayerAction → логика → события изменения состояния → рендер и HUD. Логика не вызывается напрямую из UI.
++- Сохранения: старые миры из 1.0 должны открываться. Добавь номер версии формата и миграцию 1 → 2 (игроку в старом мире выдать выживание по умолчанию и пустые статы).
++- Без unsafe, комментарии на русском, тесты для ключевой логики.
++
++## ГРАФИКА И АТЛАС
++Используй существующий атлас atlas_128x128.png: рисованный стиль, тайлы 128x128, 6 колонок, 3 ряда, индексы идут слева направо и сверху вниз. Занятые индексы:
++0 grass_top, 1 grass_side, 2 dirt, 3 stone, 4 deepslate, 5 sand, 6 gravel, 7 oak_log, 8 oak_log_top, 9 oak_leaves, 10 oak_planks, 11 cobblestone, 12 glass (прозрачный), 13 water (полупрозрачный), 14 snow, 15 sandstone, 16 sandstone_top. Индекс 17 свободен.
++- Новые тайлы добавляй с индекса 18, атлас растёт вниз новыми рядами. Не меняй существующие индексы. Если при мипмапах появляется «просачивание» соседних тайлов, добавь отступы между тайлами или перейди на texture array.
++- Руды: рисуй как наложение (оверлей) руды поверх базового тайла stone или deepslate, а не отдельные полные тайлы. Так 8 руд × 2 фона не раздувают атлас. Пока нет арта, ставь временные цветные оверлеи и помечай их TODO(art).
++- Нужны ещё временные тайлы (TODO(art)): лава, огонь, глина, обсидиан, верстак (верх, бок), печь (перед, бок, верх), наковальня, сундук, стол зачарований, книжная полка, грядка.
++- Предметы (не блоки): слитки, инструменты, броня, уголь и т.д. рисуются в отдельном атласе предметов (тайлы 128x128), пока без арта — процедурные цветные заглушки с TODO(art).
++- Иконки блоков в инвентаре и хотбаре: изометрические кубики. Файлы иконок я дам в assets/ui/icons/ (128x128, 64x64, 32x32), там же слоты slot.png и slot_selected.png. Для новых блоков без иконки генерируй кубик из их тайлов (верх, левая грань светлее, правая темнее).
++- Стиль интерфейса: тёмно-фиолетовые панели с золотистой окантовкой, выбранный слот с золотой подсветкой. Не копируй Minecraft-интерфейс.
++- Предмет-дроп блока рисуй как маленький вращающийся кубик из тех же тайлов, предмета — как плоский спрайт.
++
++## 1. РЕЖИМЫ ИГРЫ И ПЕРСОНАЖ
++- Два режима: Выживание и Творческий (выбор при создании мира, переключение командой /gamemode).
++- Здоровье: 20 единиц (10 сердец). Естественная регенерация, если голод ≥ 18: +1 единица здоровья раз в 4 секунды, тратит насыщение.
++- Голод: 20 единиц + насыщение (saturation) + истощение (exhaustion). Накопленное истощение 4.0 снимает 1 единицу насыщения, а при нулевом насыщении 1 единицу голода. Источники истощения (значения в RON): бег 0.1 за метр, прыжок 0.05, прыжок во время бега 0.2, получение урона 0.1, добыча блока 0.005, атака 0.1. При голоде 0 игрок получает 1 урон раз в 4 секунды, но не опускается ниже 1 сердца (ниже 0.5 сердца только на высокой сложности, если она есть).
++- Источники урона: падение (1 за блок свыше 3), утопление (полоска воздуха 10 пузырей, 15 секунд под водой, потом 2 урона в секунду), лава, огонь, мобы (заглушка под версию 3.0), голод, выход за мир по Y.
++- Смерть: экран смерти, выпадение инвентаря (опция gamerule keepInventory), возрождение у точки спавна мира.
++- В творческом режиме: нет урона и голода, мгновенная добыча, бесконечные блоки, полёт.
++
++## 2. РУДЫ И РЕСУРСЫ
++Высота Y: от -64 до 320, уровень моря 63. Генерация жилами с треугольным распределением по высоте вокруг середины диапазона.
++Формат: руда | диапазон Y | жил на чанк | размер жилы | мин. уровень инструмента | дроп
++- Уголь | 0…192 | 20 | до 17 | 0 | уголь
++- Медь | -16…112 | 16 | до 10 | 1 | сырая медь
++- Железо | -64…72 | 12 | до 9 | 1 | сырое железо
++- Серебро | -32…40 | 6 | до 8 | 2 | сырое серебро
++- Золото | -64…32 | 4 | до 9 | 3 | сырое золото
++- Лазурит | -64…64 | 2 | до 7 | 2 | 4–9 лазурита
++- Красная пыль | -64…16 | 8 | до 8 | 3 | 4–5 пыли (пока без применения, нужна для будущих версий)
++- Алмаз | -64…16 | 7 | до 8 | 3 | алмаз
++Правила генерации:
++- Руда заменяет только stone и deepslate. Не генерируется в воздухе, воде, лаве и других блоках. Ниже определённой высоты (по умолчанию Y < 0) основа жилы deepslate, и руда получает оверлей на deepslate.
++- Генерация детерминирована от seed и координат чанка, не зависит от порядка загрузки чанков. Жилы могут пересекать границы чанков: чанк обрабатывает жилы соседей, которые в него заходят.
++- Руды видны на стенах пещер, дополнительные проверки по соседям не нужны.
++Другие базовые ресурсы: дерево, камень, булыжник, песок, гравий, глина, палки, уголь, самородки, обсидиан (нужен для стола зачарований).
++Сырые руды плавятся в печи в слитки. Из слитков делаются самородки и обратно.
++
++## 3. ДОБЫЧА БЛОКОВ
++- У каждого блока: hardness, tool_type (hand/pickaxe/axe/shovel/hoe/sword), min_tier, requires_tool (bool), drops (с шансами), xp.
++- Скорость руки равна 1. Время добычи = hardness * 1.5 / speed инструмента, если тип подходит и уровень достаточен. Если требуется инструмент (requires_tool) и он не подходит: hardness * 5 и дроп не выпадает (руды, камень). Если инструмент не требуется (земля, дерево): неподходящий инструмент даёт время как рукой, дроп выпадает. Блоки с hardness 0 ломаются мгновенно.
++- Шкала tier (уровень добычи) общая для инструментов и блоков: 0 дерево, 1 камень и медь, 2 золото, 3 железо и серебро, 4 алмаз. Обсидиан требует tier 4. Руда ломается, только если tier инструмента ≥ min_tier руды.
++- Стартовые значения базовых блоков (можно менять в RON): grass 0.6 лопата; dirt 0.5 лопата; sand 0.5 лопата; gravel 0.6 лопата; snow 0.1 лопата; stone 1.5 кирка tier 0, дроп cobblestone; cobblestone 2.0 кирка tier 0; deepslate 3.0 кирка tier 0; sandstone 0.8 кирка tier 0; oak_log 2.0 топор, oak_planks 2.0 топор; oak_leaves 0.2 без инструмента, редкий дроп палки; glass 0.3 без дропа (со Шёлковым касанием даёт блок); water не добывается.
++- Анимация трещин на блоке во время добычи, прогресс сбрасывается, если отвести взгляд.
++- Каждая добыча тратит 1 единицу прочности инструмента (блоки с hardness 0 не тратят).
++- Зачарование Удача увеличивает дроп руд, Шёлковое касание даёт сам блок.
++
++## 4. ИНСТРУМЕНТЫ И БРОНЯ
++Материалы: прочность | скорость | урон меча | уровень добычи
++- Дерево 59 | 2 | 4 | 0
++- Камень 131 | 4 | 5 | 1
++- Медь 190 | 5 | 5 | 1
++- Железо 250 | 6 | 6 | 3
++- Серебро 220 | 7 | 6 | 3 (+урон по нежити, заготовка под 3.0)
++- Золото 32 | 12 | 4 | 2
++- Алмаз 1561 | 8 | 7 | 4
++Типы: кирка, топор, лопата, мотыга, меч. Мотыга обрабатывает землю в грядку. Меч ломает паутину и листву быстрее, но тратит 2 прочности за блок.
++Броня (4 слота: шлем, нагрудник, поножи, ботинки): защита за комплект | прочность
++- Кожа 7 | 80
++- Медь 8 | 150
++- Железо 12 | 250
++- Серебро 11 | 220
++- Золото 10 | 100
++- Алмаз 16 | 520
++Распределение защиты по частям (шлем, нагрудник, поножи, ботинки): кожа 1/3/2/1, медь 2/3/2/1, железо 2/5/3/2, серебро 2/4/3/2, золото 2/4/2/2, алмаз 3/6/4/3. Прочность комплекта делится по частям множителями шлем 0.7, нагрудник 1.0, поножи 0.95, ботинки 0.8 от значения в таблице (допущение, значения в RON).
++Формула урона: итоговый урон = урон * (1 - min(20, защита) / 25). Броня теряет 1 прочность за получение урона (минимум 1 на каждую надетую часть). Зачарование Защита добавляет +1 защиты за уровень на часть.
++Поломка инструмента: предмет исчезает при прочности 0. Прочность показывается полоской под иконкой предмета (зелёная → жёлтая → красная).
++
++## 5. ПРЕДМЕТЫ, ВЫПАДЕНИЕ И ИНВЕНТАРЬ
++- Предмет-дроп: маленький вращающийся 3D-спрайт, притягивается к игроку в радиусе 1.5 блока, подбирается с задержкой 0.5 с, исчезает через 5 минут, объединяется с соседними такими же. Ограничь число одновременных дропов в мире (например 512), самые старые удаляются.
++- Стеки: 64 для блоков и материалов, 16 для яиц и подобного, 1 для инструментов и брони.
++- Инвентарь: 9 слотов хотбара + 27 основных + 4 брони + 1 вторая рука. Перетаскивание, Shift+клик (быстрый перенос), правая кнопка делит стек, колёсико мыши выбирает слот хотбара, цифры 1–9 тоже.
++- Выброс предмета клавишей Q, Ctrl+Q выбрасывает весь стек.
++- Контейнеры (сундук, печь) — блок-сущности со своим инвентарём; логика слотов общая с инвентарём игрока.
++
++## 6. СТАНЦИИ И КРАФТ
++- Крафт 2x2 в инвентаре и верстак 3x3 (форма и бесформенные рецепты).
++- Печь: вход, топливо, выход, прогресс. Топливо: уголь (8 предметов), дерево (1.5), палки (0.5). Рецепты плавки: сырые руды → слитки, булыжник → камень, песок → стекло, бревно → древесный уголь, еда (заготовка).
++- Наковальня: починка двух одинаковых предметов, переименование, стоимость в опыте.
++- Рецепты в RON: тип (shaped, shapeless, smelting), входы, выход, время плавки, опыт за выход.
++- Книга рецептов: показывает рецепты, для которых у игрока есть все ингредиенты, подсказка по расстановке.
++- Должны быть все рецепты: доски, палки, верстак, печь, наковальня, сундук, факел, все инструменты и броня (включая кожаную), стол зачарований, книжная полка, самородки и слитки.
++
++## 7. ОПЫТ И ЗАЧАРОВАНИЯ
++- Шарики опыта выпадают из руд, печи и при убийстве мобов (заготовка). Полоска опыта и уровень в HUD. Опыт для следующего уровня: 2*L+7 при L ≤ 15, 5*L-38 при 16…30, 9*L-158 при L ≥ 31 (параметры в RON).
++- Стол зачарований: рецепт из книги, обсидиана и алмазов. Предлагает 3 варианта; цена варианта i — i уровней опыта и i единиц лазурита (лазурит используется здесь, иначе он бесполезен; можно отключить в RON). Книжные полки вокруг стола улучшают варианты.
++- Базовые зачарования: Эффективность (+скорость добычи), Удача, Шёлковое касание, Прочность, Починка, Защита, Острота (урон меча). Несовместимые пары: Удача и Шёлковое касание.
++- Зачарования хранятся в предмете как список (id, уровень).
++
++## 8. HUD И МЕНЮ
++Полоски здоровья и голода, воздух под водой, броня, опыт, хотбар с прочностью, экран смерти, инвентарь с бронёй, интерфейс верстака, печи, наковальни, сундука и стола зачарований, книга рецептов. Все экраны в стиле из раздела «Графика».
++
++## 9. СОХРАНЕНИЕ
++Сохранять: инвентарь, броню, здоровье, голод, опыт, позицию, точку спавна, режим игры, содержимое печей и сундуков (в блок-сущностях), прочность и зачарования предметов. Загрузка должна полностью восстанавливать состояние. Формат: serde + bincode, чанки сжаты zstd. Номер версии формата в заголовке мира. Перед миграцией делай резервную копию мира (например world.bak_v1).
++
++## 10. ТЕСТЫ
++- Время добычи правильно считается для всех материалов, нужный tier обязателен для руд, неподходящий инструмент не даёт дропа у руд и камня.
++- Рецепты крафта и плавки соответствуют RON, ссылки в RON валидны.
++- Формула урона с бронёй, распределение защиты по частям, поломка предмета.
++- Миграция сохранения 1 → 2 на готовом файле-образце мира из 1.0 (положи его в tests/fixtures/).
++- Руды не выходят за диапазон Y, не попадают в воздух, воду и жидкости, генерация детерминирована при разном порядке загрузки чанков.
++- Голод, регенерация, смерть и возрождение.
++- Стаки, быстрый перенос и разделение стека в инвентаре.
++
++## ПОРЯДОК РАБОТЫ
++Работай этапами, после каждого этапа проект компилируется и запускается. После каждого этапа жди моего «дальше».
++1. Анализ кода 1.0, план изменений, схема данных RON (примеры файлов для блока, предмета, руды, рецепта, инструмента).
++2. Режимы, здоровье, голод, смерть, возрождение, HUD, консоль команд.
++3. Предметы, дроп, новый инвентарь, стеки, контейнеры.
++4. Руды и генерация, добыча с учётом инструмента, оверлеи руд в атласе.
++5. Инструменты, броня, прочность, формула урона.
++6. Верстак, печь, наковальня, система рецептов, книга рецептов.
++7. Опыт, стол зачарований, зачарования.
++8. Сохранения и миграция 1 → 2, тесты, шлифовка.
++
++## ФОРМАТ ОТВЕТА НА КАЖДОМ ЭТАПЕ
++- Список созданных и изменённых файлов.
++- Новые файлы: код целиком, с путём в заголовке. Изменённые файлы: только изменённые фрагменты с указанием места (или diff), целиком файл только если изменений больше половины. Если ответ не помещается, раздели его на части и скажи, сколько частей осталось.
++- Команды запуска и что проверить вручную.
++- Что осталось и что делать на следующем этапе.
++Если не хватает информации, задай не более 3 коротких вопросов и продолжай с разумными допущениями.
++
++Начни с этапа 1.
+\ No newline at end of file
