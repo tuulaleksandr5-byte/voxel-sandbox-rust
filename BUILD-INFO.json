@@ -1,0 +1,35 @@
+{
+  "name": "Voxel Sandbox 2.0 Survival — Stage 3 alpha + uploaded tool textures",
+  "version": "2.0.0-dev.3",
+  "completed_stages": [
+    1,
+    2,
+    3
+  ],
+  "source_commit": "a9bd00bde4901aa44af5f5c10eea6540e6f33311",
+  "base_source_commit": "9c8a3d700b72fc938f15dfc8f54d8d5a1f31368a",
+  "target": "x86_64-pc-windows-gnu",
+  "rust": "1.99.1",
+  "bevy": "0.20.1",
+  "exe_sha256": "7eb120a81cd415cb34399120648369034f849c14c476378eb2923d8bbef8c640",
+  "native_tests": 184,
+  "windows_wine_tests": 183,
+  "native_windows_hardware_verified": false,
+  "original_embedded_png_count": 17,
+  "save_schema": 1,
+  "generator_version": 1,
+  "default_save_directory": "saves-v2",
+  "runtime_only_until_stage9": [
+    "inventory",
+    "held_cursor",
+    "drops",
+    "chests_and_contents",
+    "vitals",
+    "game_mode",
+    "game_rules"
+  ],
+  "created_utc": "2026-11-09T08:50:00.914229+00:00",
+  "asset_revision": "tools-v1",
+  "embedded_original_tool_png_count": 25,
+  "retained_original_tool_png_count": 77
+}
