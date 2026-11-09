@@ -1,4 +1,16 @@
-//! Shared world-coordinate rules. Keep this crate independent of Bevy.
+//! Deterministic voxel storage and generation, independent of Bevy.
+
+pub mod blocks;
+pub use blocks::*;
+pub mod world;
+pub use world::*;
+pub mod content;
+pub mod drops;
+pub mod interaction;
+pub mod inventory;
+pub mod items;
+pub mod persistence;
+pub mod survival;
 
 /// Inclusive lower bound of the overworld.
 pub const WORLD_MIN_Y: i32 = -64;

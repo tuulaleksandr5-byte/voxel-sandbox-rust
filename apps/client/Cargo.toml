@@ -1,9 +1,18 @@
 [package]
 name = "voxel-client"
-version = "0.1.0"
+version = "2.0.0-dev.3"
 edition.workspace = true
 publish = false
 
 [dependencies]
 bevy.workspace = true
 game_core.workspace = true
+game_render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rodio = { version = "=0.22.2", default-features = false }
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
+winit = { version = "=0.30.13", default-features = false }
+
+[build-dependencies]
+find-msvc-tools = "=0.1.15"
